@@ -1,3 +1,5 @@
 """Hermes Trading Bot core package."""
 
-__all__ = ["connectors"]
+from . import connectors, signals
+
+__all__ = ["connectors", "signals"]
