@@ -5,10 +5,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Sequence
 
+from ..candles import CandleBatch
+
 
 class Signal(ABC):
     """Abstract interface for evaluating trading signals."""
 
     @abstractmethod
-    def evaluate(self, prices: Sequence[float]) -> bool:
-        """Return ``True`` if a signal is triggered for the given prices."""
+    def evaluate(self, candles: CandleBatch) -> Sequence[str]:
+        """Return detected signals for the provided candles."""
