@@ -15,12 +15,16 @@ class PriceActionSignal(Signal):
     """Detects price action patterns within a batch of candles."""
 
     def evaluate(self, candles: CandleBatch, levels: List[Level]) -> List[str]:  # type: ignore[override]
-        """Return patterns that occur on provided liquidity levels."""
+        """Return patterns that occur on provided liquidity levels.
+
+        Only levels that existed before the candle's timestamp are considered.
+        """
 
         signals: List[str] = []
         bars = candles.candles
         for i, bar in enumerate(bars):
             if not any(
+                # A level must precede the candle to be relevant
                 lvl.active and lvl.timestamp < bar.timestamp and bar.low <= lvl.price <= bar.high
                 for lvl in levels
             ):
