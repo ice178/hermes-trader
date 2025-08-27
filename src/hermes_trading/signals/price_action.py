@@ -46,4 +46,4 @@ class PriceActionSignal(Signal):
         rng = c.high - c.low
         tail = min(c.open, c.close) - c.low
         head = c.high - max(c.open, c.close)
-        return body < rng * 0.3 and tail > head * 2
+        return body < rng * 0.3 and tail > body * 2
