@@ -21,7 +21,7 @@ class PriceActionSignal(Signal):
         bars = candles.candles
         for i, bar in enumerate(bars):
             if not any(
-                lvl.active and lvl.timestamp <= bar.timestamp and bar.low <= lvl.price <= bar.high
+                lvl.active and lvl.timestamp < bar.timestamp and bar.low <= lvl.price <= bar.high
                 for lvl in levels
             ):
                 continue
