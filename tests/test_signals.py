@@ -12,8 +12,9 @@ def test_price_action_signal_detects_patterns_on_levels():
     candles.extend(Candle(i, 100, 101, 99, 100) for i in range(3, 10))
     batch = CandleBatch(list(candles))
     levels = [
-        Level(price=98, type="low", timestamp=1),
-        Level(price=85, type="low", timestamp=2),
+        # Levels must precede the candles they validate
+        Level(price=98, type="low", timestamp=0),
+        Level(price=85, type="low", timestamp=1),
     ]
     signal = PriceActionSignal()
     results = signal.evaluate(batch, levels)
