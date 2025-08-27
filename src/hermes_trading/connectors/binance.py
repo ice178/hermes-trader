@@ -12,7 +12,13 @@ class BinanceConnector(ExchangeConnector):
     """Provides basic market data and order execution for Binance."""
 
     def __init__(self, api_key: str | None = None, secret: str | None = None):
-        self.client = ccxt.binance({"apiKey": api_key, "secret": secret})
+        # self.client = ccxt.binance({"apiKey": api_key, "secret": secret})
+        self.client = ccxt.binanceusdm({
+            "enableRateLimit": True,
+            "options": {
+                "defaultType": "future",
+            },
+        })
 
     def get_market_price(self, symbol: str) -> float:
         ticker = self.client.fetch_ticker(symbol)
