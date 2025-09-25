@@ -9,6 +9,7 @@ class Candle:
     """Represents a single OHLCV candle."""
 
     timestamp: int
+    datetime: str
     open: float
     high: float
     low: float
