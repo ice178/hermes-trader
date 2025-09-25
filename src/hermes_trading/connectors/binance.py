@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import ccxt
 
 from .base import ExchangeConnector
@@ -29,7 +31,14 @@ class BinanceConnector(ExchangeConnector):
     ) -> CandleBatch:
         ohlcv = self.client.fetch_ohlcv(symbol, timeframe=interval, limit=limit)
         candles = [
-            Candle(ts, open_, high, low, close)
+            Candle(
+                timestamp=ts,
+                datetime=datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
+                open=open_,
+                high=high,
+                low=low,
+                close=close,
+            )
             for ts, open_, high, low, close, *_ in ohlcv
         ]
         return CandleBatch(candles)
