@@ -41,11 +41,21 @@ def open_trade(
     """Create a direction-aware trade based on the closing candle."""
 
     if direction == "long":
-        risk = max(candle.close - candle.low, 0) * 1.5
+        if pattern == 'railway_tracks':
+            low = candle.open
+        else:
+            low = candle.low
+
+        risk = max(candle.close - low, 0) * 1.1
         stop = candle.close - risk
         take = candle.close + 2 * risk
     else:
-        risk = max(candle.high - candle.close, 0) * 1.5
+        if pattern == 'railway_tracks':
+            high = candle.open
+        else:
+            high = candle.high
+
+        risk = max(high - candle.close, 0) * 1.1
         stop = candle.close + risk
         take = candle.close - 2 * risk
 

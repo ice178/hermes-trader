@@ -104,21 +104,22 @@ class PriceActionSignal(Signal):
 
     @staticmethod
     def _is_buy_pin_bar(c: Candle) -> bool:
-        if c.open > c.close:
-            return False
+        # пока уберем это условие
+        # if c.open > c.close:
+        #     return False
 
         body = abs(c.close - c.open)
 
         rng = c.high - c.low
         tail = min(c.open, c.close) - c.low
         head = c.high - max(c.open, c.close)
-        return body < rng * 0.3 and tail > body * 2
+        return body < rng * 0.3 and tail > body * 2 and head < tail * 0.5
 
     @staticmethod
     def _is_sell_pin_bar(c: Candle) -> bool:
         # Для медвежьего пин-бара тело должно быть "медвежьим" (закрытие ниже открытия)
-        if c.open < c.close:
-            return False
+        # if c.open < c.close:
+        #     return False
 
         body = abs(c.close - c.open)
         rng = c.high - c.low
@@ -128,7 +129,7 @@ class PriceActionSignal(Signal):
         head = min(c.open, c.close) - c.low  # нижний хвост
 
         # Условие: тело маленькое, верхний хвост длиннее
-        return body < rng * 0.3 and tail > body * 2  # and head * 2 < tail (если хочешь усилить фильтр)
+        return body < rng * 0.3 and tail > body * 2 and head <  tail * 0.5
 
     @staticmethod
     def _is_railway_tracks_long(prev: Candle, curr: Candle) -> bool:
