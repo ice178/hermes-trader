@@ -22,18 +22,21 @@ def main() -> None:
     opened = 0
     stop_moved = 0
     data = []
+    candlesRaw = []
+    for symbol in ["BTC/USDT"]:
     # for symbol in ["BTC/USDT","ETH/USDT"]:
     #, "XRP/USDT", "LTC/USDT"]:
-    for symbol in ["BTC/USDT"]:
+    # for symbol in ["BTC/USDT"]:
         timeframe = "1h"
         # since = int((datetime.now(tz=timezone.utc) - timedelta(days=365)).timestamp() * 1000)
-        since = int(datetime.fromisoformat('2024-10-15T00:00:00.000000+00:00').timestamp() * 1000)
-        # since = int(datetime.fromisoformat('2025-08-28T00:00:00.000000+00:00').timestamp() * 1000)
-        limit = 1201
-        # limit = None
+        # since = int(datetime.fromisoformat('2024-10-15T00:00:00.000000+00:00').timestamp() * 1000)
+        # since = int(datetime.fromisoformat('2025-09-01T00:00:00.000000+00:00').timestamp() * 1000)
+        since = int(datetime.fromisoformat('2025-09-01T00:00:00.000000+00:00').timestamp() * 1000)
+        limit = None
+        # limit = 720
 
-        # connector = BinanceConnector()
-        connector = BingXConnector()
+        connector = BinanceConnector()
+        # connector = BingXConnector()
         ohlcv = connector.client.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit, params={"paginate": True})
         candles = [
             Candle(
@@ -43,14 +46,42 @@ def main() -> None:
                 high=h,
                 low=l,
                 close=c,
+                volume=v
             )
-            for ts, o, h, l, c, *_ in ohlcv
+            for ts, o, h, l, c, v in ohlcv
         ]
+
+        for ts, o, h, l, c, v in ohlcv:
+            candlesRaw.append({
+                "datetime": datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
+                "open": o,
+                "high": h,
+                "low": l,
+                "close": c,
+                "volume": v
+            })
+
+        with open("candles2.json", "w+", encoding="utf-8") as f:
+            json.dump(candlesRaw, f, ensure_ascii=False, indent=2)
+
 
         signal = PriceActionSignal()
         levels = LiquidityLevels()
         levels.build(candles)
         trades: List[Trade] = []
+
+        levels_raw = []
+
+        for level in levels.levels:
+            levels_raw.append({
+                "datetime": level.datetime,
+                "price": level.price,
+                "type": level.type
+            })
+
+        # with open("levels.json", "w+", encoding="utf-8") as f:
+        #     json.dump(levels_raw, f, ensure_ascii=False, indent=2)
+
 
         for i in range(9, len(candles)):
             current = candles[i]
@@ -68,6 +99,9 @@ def main() -> None:
                 if match.candle.timestamp == current.timestamp
             ]
             for match in results:
+                candle_date_time = datetime.fromtimestamp(match.candle.timestamp / 1000,tz=timezone.utc)
+                if candle_date_time.weekday() >= 5:
+                    continue
                 trades.append(
                     open_trade(
                         match.candle,
@@ -118,8 +152,8 @@ def main() -> None:
                 # print(f"{t.result} {t.pattern} at {ts.isoformat()} level {t.level_price} from {lvl_ts.isoformat()}")
                 # print(t.stop, t.stop_price, t.stop - t.stop_price, t.entry, t.take)
 
-    with open("data.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    # with open("data.json", "w", encoding="utf-8") as f:
+    #     json.dump(data, f, ensure_ascii=False, indent=2)
 
     print()
     print(f"Profitable trades: {profit}")

@@ -1,5 +1,12 @@
 """Hermes Trading Bot core package."""
 
-from . import candles, connectors, liquidity, signals, trading
+from . import candles, connectors, liquidity, realtime, signals, trading
 
-__all__ = ["candles", "connectors", "liquidity", "signals", "trading"]
+__all__ = [
+    "candles",
+    "connectors",
+    "liquidity",
+    "realtime",
+    "signals",
+    "trading",
+]
