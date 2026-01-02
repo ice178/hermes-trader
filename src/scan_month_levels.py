@@ -23,15 +23,14 @@ def main() -> None:
     stop_moved = 0
     data = []
     candlesRaw = []
-    for symbol in ["BTC/USDT"]:
-    # for symbol in ["BTC/USDT","ETH/USDT"]:
-    #, "XRP/USDT", "LTC/USDT"]:
     # for symbol in ["BTC/USDT"]:
+    for symbol in ["BTC/USDT","ETH/USDT","BNB/USDT"]:
+    # for symbol in ["BTC/USDT","ETH/USDT","XRP/USDT","LTC/USDT"]:
         timeframe = "1h"
         # since = int((datetime.now(tz=timezone.utc) - timedelta(days=365)).timestamp() * 1000)
         # since = int(datetime.fromisoformat('2024-10-15T00:00:00.000000+00:00').timestamp() * 1000)
         # since = int(datetime.fromisoformat('2025-09-01T00:00:00.000000+00:00').timestamp() * 1000)
-        since = int(datetime.fromisoformat('2025-09-01T00:00:00.000000+00:00').timestamp() * 1000)
+        since = int(datetime.fromisoformat('2025-01-01T00:00:00.000000+00:00').timestamp() * 1000)
         limit = None
         # limit = 720
 
@@ -98,10 +97,25 @@ def main() -> None:
                 for match in signal.evaluate(batch, active_levels)
                 if match.candle.timestamp == current.timestamp
             ]
+
+            # if len(results) > 1:
+            #     print(results)
+            #     print("\n")
+
             for match in results:
                 candle_date_time = datetime.fromtimestamp(match.candle.timestamp / 1000,tz=timezone.utc)
                 if candle_date_time.weekday() >= 5:
                     continue
+
+                if match.level.weight == 0.5:
+                    continue
+
+                if match.pattern == "pin_bar" and match.direction == "long":
+                    continue
+
+                if match.pattern == "pin_bar" and match.direction == "short" and match.level.weight == 1:
+                    continue
+
                 trades.append(
                     open_trade(
                         match.candle,
@@ -111,6 +125,9 @@ def main() -> None:
                         match.direction,
                     )
                 )
+
+                break
+
             levels.prune(current)
 
         wins = sum(1 for t in trades if t.result == "take")
@@ -138,13 +155,17 @@ def main() -> None:
                 "open_price": t.open_candle.close,
                 "take_price": t.take,
                 "stop_price": t.stop,
+                "profit": t.profit,
+                "losses": t.losses,
                 "is_successful": t.result == "take",
                 "level_from": datetime.fromtimestamp(t.level_start / 1000, tz=timezone.utc).isoformat(),
                 "level_price": t.level_price,
+                "level_weight": t.level.weight,
                 "open_candle_price_open": t.open_candle.open,
                 "open_candle_price_close": t.open_candle.close,
                 "open_candle_price_high": t.open_candle.high,
                 "open_candle_price_low": t.open_candle.low,
+                "comment": "",
             })
             if t.stop_price is not None:
                 ts = datetime.fromtimestamp(t.opened_at / 1000, tz=timezone.utc)
@@ -152,8 +173,8 @@ def main() -> None:
                 # print(f"{t.result} {t.pattern} at {ts.isoformat()} level {t.level_price} from {lvl_ts.isoformat()}")
                 # print(t.stop, t.stop_price, t.stop - t.stop_price, t.entry, t.take)
 
-    # with open("data.json", "w", encoding="utf-8") as f:
-    #     json.dump(data, f, ensure_ascii=False, indent=2)
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
     print()
     print(f"Profitable trades: {profit}")
@@ -172,7 +193,14 @@ def main() -> None:
 
     sorted_data = data
 
+    profit_total = 0
+
     for item in sorted_data:
+        if item["is_successful"]:
+            profit_total += item["profit"]
+        else:
+            profit_total -= item["losses"]
+
         if depo >= initial_depo * 1.2:
             risk1 = risk1 * 1.2
             initial_depo = depo
@@ -186,6 +214,11 @@ def main() -> None:
     total_sum = profit * 50 * 2 + stop_moved * risk * 1 - lose * risk
 
     income = depo - 1000
+
+    print()
+    print(f"Profit total: {profit_total} USD")
+    print()
+
 
     print(f"Income: {total_sum} USD")
     print(f"Income with raising: {income} USD")

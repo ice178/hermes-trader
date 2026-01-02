@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from typing import List, Optional
-import math
 import numpy as np
 import pandas as pd
 
 from .candles import Candle
+
+DAILY_EXTREME_WEIGHT = 1.0
+DEFAULT_LEVEL_WEIGHT = 0.5
 
 @dataclass
 class Level:
@@ -12,6 +14,7 @@ class Level:
     type: str  # "high" | "low"
     timestamp: int            # ms (время самой экстремальной свечи i)
     datetime: str             # ISO8601 (UTC) этой свечи
+    weight: float = DEFAULT_LEVEL_WEIGHT
     # новое: момент, когда уровень считается подтверждённым (после i + confirm_forward)
     confirmed_timestamp: int  = 0
     confirmed_datetime: str   = ""
@@ -49,6 +52,9 @@ class LiquidityLevels:
 
         df = _candles_to_df(candles)
         H, L = df["High"].to_numpy(), df["Low"].to_numpy()
+        day_index = df.index.normalize()
+        daily_highs = df["High"].groupby(day_index).transform("max").to_numpy()
+        daily_lows = df["Low"].groupby(day_index).transform("min").to_numpy()
         n = len(df)
         w = self.window
         fwd = self.confirm_forward
@@ -71,9 +77,11 @@ class LiquidityLevels:
             ts_ms      = int(df.index[i].timestamp() * 1000)
             conf_ts_ms = int(df.index[i + fwd].timestamp() * 1000)
             price = _round_to_tick(H[i], self.tick_size)
+            weight = DAILY_EXTREME_WEIGHT if H[i] == daily_highs[i] else DEFAULT_LEVEL_WEIGHT
             levels.append(Level(
                 price=price, type="high",
                 timestamp=ts_ms, datetime=df.index[i].isoformat(),
+                weight=weight,
                 confirmed_timestamp=conf_ts_ms, confirmed_datetime=df.index[i + fwd].isoformat(),
             ))
 
@@ -81,9 +89,11 @@ class LiquidityLevels:
             ts_ms      = int(df.index[i].timestamp() * 1000)
             conf_ts_ms = int(df.index[i + fwd].timestamp() * 1000)
             price = _round_to_tick(L[i], self.tick_size)
+            weight = DAILY_EXTREME_WEIGHT if L[i] == daily_lows[i] else DEFAULT_LEVEL_WEIGHT
             levels.append(Level(
                 price=price, type="low",
                 timestamp=ts_ms, datetime=df.index[i].isoformat(),
+                weight=weight,
                 confirmed_timestamp=conf_ts_ms, confirmed_datetime=df.index[i + fwd].isoformat(),
             ))
 
