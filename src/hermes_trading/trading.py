@@ -15,6 +15,8 @@ class Trade:
     entry: float
     stop: float
     take: float
+    profit: float
+    losses: float
     risk: float
     opened_at: int
     pattern: str
@@ -40,6 +42,15 @@ def open_trade(
 ) -> Trade:
     """Create a direction-aware trade based on the closing candle."""
 
+    if level.weight == 1.0:
+        risk_multiplicator = 2
+        profit = 100
+        losses = 50
+    else:
+        risk_multiplicator = 1
+        profit = 25
+        losses = 25
+
     if direction == "long":
         if pattern == 'railway_tracks':
             low = candle.open
@@ -48,7 +59,7 @@ def open_trade(
 
         risk = max(candle.close - low, 0) * 1.1
         stop = candle.close - risk
-        take = candle.close + 2 * risk
+        take = candle.close + risk_multiplicator * risk
     else:
         if pattern == 'railway_tracks':
             high = candle.open
@@ -57,13 +68,15 @@ def open_trade(
 
         risk = max(high - candle.close, 0) * 1.1
         stop = candle.close + risk
-        take = candle.close - 2 * risk
+        take = candle.close - risk_multiplicator * risk
 
     return Trade(
         symbol=symbol,
         entry=candle.close,
         stop=stop,
         take=take,
+        profit=profit,
+        losses=losses,
         risk=risk,
         opened_at=candle.timestamp,
         pattern=pattern,
