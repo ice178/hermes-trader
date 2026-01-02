@@ -1,0 +1,41 @@
+{
+  "strategy": {
+    "timeframe": "1h",
+    "research_mode": false,
+    "executions_enabled": ["BASE_RR1"],
+    "level_price_rounding": {
+      "decimals": 2
+    },
+    "missing_indicator_policy": "skip",
+    "filters": {
+      "pin_bar_sell": {
+        "enabled": false,
+        "use_ema200": true,
+        "ema200_near_atr": 0.1,
+        "min_sl_atr": 0.8,
+        "wick_body_ratio": 2.0,
+        "close_location_max": 0.33,
+        "max_distance_atr": 0.2,
+        "use_sweep_filter": false,
+        "min_sweep_atr": 0.05
+      }
+    },
+    "execution_params": {
+      "time_stop_bars": 6,
+      "be_trigger_R": 0.5,
+      "be_offset_R": 0.0,
+      "hybrid": {
+        "tp1_R": 1.0,
+        "tp2_R": 2.0,
+        "tp1_size": 0.5,
+        "tp2_size": 0.5,
+        "move_stop_to_be": true
+      }
+    },
+    "commissions": {
+      "enabled": false,
+      "rate": 0.0004,
+      "slippage_ticks": 0
+    }
+  }
+}
