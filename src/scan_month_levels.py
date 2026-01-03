@@ -365,7 +365,8 @@ def main() -> None:
                 }
                 trade_store.add_record(record)
 
-            trade_store.save()
+    if research_mode:
+        trade_store.save()
 
     print()
     print(f"Profitable trades: {profit}")
