@@ -23,155 +23,159 @@ def main() -> None:
     stop_moved = 0
     data = []
     candlesRaw = []
-    # for symbol in ["BTC/USDT"]:
-    for symbol in ["BTC/USDT","ETH/USDT","BNB/USDT"]:
-    # for symbol in ["BTC/USDT","ETH/USDT","XRP/USDT","LTC/USDT"]:
-        timeframe = "1h"
-        # since = int((datetime.now(tz=timezone.utc) - timedelta(days=365)).timestamp() * 1000)
-        # since = int(datetime.fromisoformat('2024-10-15T00:00:00.000000+00:00').timestamp() * 1000)
-        # since = int(datetime.fromisoformat('2025-09-01T00:00:00.000000+00:00').timestamp() * 1000)
-        since = int(datetime.fromisoformat('2025-01-01T00:00:00.000000+00:00').timestamp() * 1000)
-        limit = None
-        # limit = 720
 
-        connector = BinanceConnector()
-        # connector = BingXConnector()
-        ohlcv = connector.client.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit, params={"paginate": True})
-        candles = [
-            Candle(
-                timestamp=ts,
-                datetime=datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
-                open=o,
-                high=h,
-                low=l,
-                close=c,
-                volume=v
-            )
-            for ts, o, h, l, c, v in ohlcv
-        ]
+    # connectors = [BinanceConnector(), BingXConnector()]
+    connectors = [BinanceConnector()]
+    # connectors = [BingXConnector()]
 
-        for ts, o, h, l, c, v in ohlcv:
-            candlesRaw.append({
-                "datetime": datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
-                "open": o,
-                "high": h,
-                "low": l,
-                "close": c,
-                "volume": v
-            })
+    for connector in connectors:
 
-        with open("candles2.json", "w+", encoding="utf-8") as f:
-            json.dump(candlesRaw, f, ensure_ascii=False, indent=2)
+        for symbol in ["BTC/USDT","ETH/USDT","BNB/USDT"]:
+        # for symbol in ["BTC/USDT","ETH/USDT","XRP/USDT","LTC/USDT"]:
+            timeframe = "1h"
+            # since = int((datetime.now(tz=timezone.utc) - timedelta(days=365)).timestamp() * 1000)
+            # since = int(datetime.fromisoformat('2024-10-15T00:00:00.000000+00:00').timestamp() * 1000)
+            # since = int(datetime.fromisoformat('2025-09-01T00:00:00.000000+00:00').timestamp() * 1000)
+            since = int(datetime.fromisoformat('2025-01-01T00:00:00.000000+00:00').timestamp() * 1000)
+            limit = None
+            # limit = 720
 
-
-        signal = PriceActionSignal()
-        levels = LiquidityLevels()
-        levels.build(candles)
-        trades: List[Trade] = []
-
-        levels_raw = []
-
-        for level in levels.levels:
-            levels_raw.append({
-                "datetime": level.datetime,
-                "price": level.price,
-                "type": level.type
-            })
-
-        # with open("levels.json", "w+", encoding="utf-8") as f:
-        #     json.dump(levels_raw, f, ensure_ascii=False, indent=2)
-
-
-        for i in range(9, len(candles)):
-            current = candles[i]
-            update_trades(trades, current)
-
-            if is_open_trade_exists(trades):
-                continue
-
-            batch = CandleBatch(candles[i - 9 : i + 1])
-            active_levels = levels.active_levels(current.timestamp)
-
-            results = [
-                match
-                for match in signal.evaluate(batch, active_levels)
-                if match.candle.timestamp == current.timestamp
+            ohlcv = connector.client.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit, params={"paginate": True})
+            candles = [
+                Candle(
+                    timestamp=ts,
+                    datetime=datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
+                    open=o,
+                    high=h,
+                    low=l,
+                    close=c,
+                    volume=v
+                )
+                for ts, o, h, l, c, v in ohlcv
             ]
 
-            # if len(results) > 1:
-            #     print(results)
-            #     print("\n")
+            for ts, o, h, l, c, v in ohlcv:
+                candlesRaw.append({
+                    "datetime": datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
+                    "open": o,
+                    "high": h,
+                    "low": l,
+                    "close": c,
+                    "volume": v
+                })
 
-            for match in results:
-                candle_date_time = datetime.fromtimestamp(match.candle.timestamp / 1000,tz=timezone.utc)
-                if candle_date_time.weekday() >= 5:
+            with open("candles2.json", "w+", encoding="utf-8") as f:
+                json.dump(candlesRaw, f, ensure_ascii=False, indent=2)
+
+
+            signal = PriceActionSignal()
+            levels = LiquidityLevels()
+            levels.build(candles)
+            trades: List[Trade] = []
+
+            levels_raw = []
+
+            for level in levels.levels:
+                levels_raw.append({
+                    "datetime": level.datetime,
+                    "price": level.price,
+                    "type": level.type
+                })
+
+            # with open("levels.json", "w+", encoding="utf-8") as f:
+            #     json.dump(levels_raw, f, ensure_ascii=False, indent=2)
+
+
+            for i in range(9, len(candles)):
+                current = candles[i]
+                update_trades(trades, current)
+
+                if is_open_trade_exists(trades):
                     continue
 
-                if match.level.weight == 0.5:
-                    continue
+                batch = CandleBatch(candles[i - 9 : i + 1])
+                active_levels = levels.active_levels(current.timestamp)
 
-                if match.pattern == "pin_bar" and match.direction == "long":
-                    continue
+                results = [
+                    match
+                    for match in signal.evaluate(batch, active_levels)
+                    if match.candle.timestamp == current.timestamp
+                ]
 
-                if match.pattern == "pin_bar" and match.direction == "short" and match.level.weight == 1:
-                    continue
+                # if len(results) > 1:
+                #     print(results)
+                #     print("\n")
 
-                trades.append(
-                    open_trade(
-                        match.candle,
-                        match.pattern,
-                        match.level,
-                        symbol,
-                        match.direction,
+                for match in results:
+                    candle_date_time = datetime.fromtimestamp(match.candle.timestamp / 1000,tz=timezone.utc)
+                    if candle_date_time.weekday() >= 5:
+                        continue
+
+                    if match.level.weight == 0.5:
+                        continue
+
+                    # if match.pattern == "pin_bar" and match.direction == "long":
+                    #     continue
+                    #
+                    # if match.pattern == "pin_bar" and match.direction == "short" and match.level.weight == 1:
+                    #     continue
+
+                    trades.append(
+                        open_trade(
+                            match.candle,
+                            match.pattern,
+                            match.level,
+                            symbol,
+                            match.direction,
+                        )
                     )
-                )
 
-                break
+                    break
 
-            levels.prune(current)
+                levels.prune(current)
 
-        wins = sum(1 for t in trades if t.result == "take")
-        losses = sum(1 for t in trades if t.result == "stop" and t.stop_is_moved == False)
-        sm = sum(1 for t in trades if t.result == "stop" and t.stop_is_moved == True)
-        o = sum(1 for t in trades if t.result is None)
+            wins = sum(1 for t in trades if t.result == "take")
+            losses = sum(1 for t in trades if t.result == "stop" and t.stop_is_moved == False)
+            sm = sum(1 for t in trades if t.result == "stop" and t.stop_is_moved == True)
+            o = sum(1 for t in trades if t.result is None)
 
-        profit += wins
-        lose += losses
-        opened += o
-        stop_moved += sm
+            profit += wins
+            lose += losses
+            opened += o
+            stop_moved += sm
 
-        print(f"Symbol: {symbol}")
-        print(f"Profitable trades: {wins}")
-        print(f"Losing trades: {losses}")
-        print(f"Stop is moved: {sm}")
-        print("Signals:")
-        for t in trades:
-            data.append({
-                "symbol": symbol,
-                "type": "buy" if t.direction == "long" else "sell",
-                "pattern": t.pattern,
-                "opened_at": datetime.fromtimestamp(t.opened_at / 1000, tz=timezone.utc).isoformat(),
-                "closed_at": None if t.result is None else t.take_candle.datetime if t.result == "take" else t.stop_candle.datetime,
-                "open_price": t.open_candle.close,
-                "take_price": t.take,
-                "stop_price": t.stop,
-                "profit": t.profit,
-                "losses": t.losses,
-                "is_successful": t.result == "take",
-                "level_from": datetime.fromtimestamp(t.level_start / 1000, tz=timezone.utc).isoformat(),
-                "level_price": t.level_price,
-                "level_weight": t.level.weight,
-                "open_candle_price_open": t.open_candle.open,
-                "open_candle_price_close": t.open_candle.close,
-                "open_candle_price_high": t.open_candle.high,
-                "open_candle_price_low": t.open_candle.low,
-                "comment": "",
-            })
-            if t.stop_price is not None:
-                ts = datetime.fromtimestamp(t.opened_at / 1000, tz=timezone.utc)
-                lvl_ts = datetime.fromtimestamp(t.level_start / 1000, tz=timezone.utc)
-                # print(f"{t.result} {t.pattern} at {ts.isoformat()} level {t.level_price} from {lvl_ts.isoformat()}")
-                # print(t.stop, t.stop_price, t.stop - t.stop_price, t.entry, t.take)
+            print(f"Symbol: {symbol}")
+            print(f"Profitable trades: {wins}")
+            print(f"Losing trades: {losses}")
+            print(f"Stop is moved: {sm}")
+            print("Signals:")
+            for t in trades:
+                data.append({
+                    "symbol": symbol,
+                    "type": "buy" if t.direction == "long" else "sell",
+                    "pattern": t.pattern,
+                    "opened_at": datetime.fromtimestamp(t.opened_at / 1000, tz=timezone.utc).isoformat(),
+                    "closed_at": None if t.result is None else t.take_candle.datetime if t.result == "take" else t.stop_candle.datetime,
+                    "open_price": t.open_candle.close,
+                    "take_price": t.take,
+                    "stop_price": t.stop,
+                    "profit": t.profit,
+                    "losses": t.losses,
+                    "is_successful": t.result == "take",
+                    "level_from": datetime.fromtimestamp(t.level_start / 1000, tz=timezone.utc).isoformat(),
+                    "level_price": t.level_price,
+                    "level_weight": t.level.weight,
+                    "open_candle_price_open": t.open_candle.open,
+                    "open_candle_price_close": t.open_candle.close,
+                    "open_candle_price_high": t.open_candle.high,
+                    "open_candle_price_low": t.open_candle.low,
+                    "comment": "",
+                })
+                if t.stop_price is not None:
+                    ts = datetime.fromtimestamp(t.opened_at / 1000, tz=timezone.utc)
+                    lvl_ts = datetime.fromtimestamp(t.level_start / 1000, tz=timezone.utc)
+                    # print(f"{t.result} {t.pattern} at {ts.isoformat()} level {t.level_price} from {lvl_ts.isoformat()}")
+                    # print(t.stop, t.stop_price, t.stop - t.stop_price, t.entry, t.take)
 
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -186,12 +190,10 @@ def main() -> None:
     initial_depo = 1000
     risk1 = 50
 
-    # sorted_data = sorted(
-    #     data,
-    #     key=lambda x: datetime.fromisoformat(x["closed_at"].replace("Z", "+00:00"))
-    # )
-
-    sorted_data = data
+    sorted_data = sorted(
+        data,
+        key=lambda x: datetime.fromisoformat(x["closed_at"].replace("Z", "+00:00"))
+    )
 
     profit_total = 0
 
@@ -210,17 +212,12 @@ def main() -> None:
         else:
             depo -= risk1
 
-    risk = 50
-    total_sum = profit * 50 * 2 + stop_moved * risk * 1 - lose * risk
-
     income = depo - 1000
 
     print()
     print(f"Profit total: {profit_total} USD")
     print()
 
-
-    print(f"Income: {total_sum} USD")
     print(f"Income with raising: {income} USD")
     print("risk is ", risk1)
 
@@ -235,10 +232,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-# risk - 50
-# 1 on 1    50 5  - 2250
-# 1 on 1.5  47 7  - 3175
-# 1 on 1.75 45 8  - 3573.5
-# 1 on 2    44 8  - 4000
-# 1 on 3    42 10 - 5800

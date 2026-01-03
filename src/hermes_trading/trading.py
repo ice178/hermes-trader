@@ -43,13 +43,16 @@ def open_trade(
     """Create a direction-aware trade based on the closing candle."""
 
     if level.weight == 1.0:
-        risk_multiplicator = 2
-        profit = 100
+        if pattern == 'railway_tracks':
+            risk_multiplicator = 3
+        else:
+            risk_multiplicator = 2
         losses = 50
     else:
         risk_multiplicator = 1
-        profit = 25
         losses = 25
+
+    profit = losses * risk_multiplicator
 
     if direction == "long":
         if pattern == 'railway_tracks':
