@@ -37,13 +37,14 @@ def main() -> None:
     data = []
     candlesRaw = []
     # for symbol in ["BTC/USDT"]:
-    config_path = Path("config/strategy.json")
+    base_dir = Path(__file__).resolve().parents[1]
+    config_path = base_dir / "config" / "strategy.json"
     config = load_strategy_config(config_path)
     strategy = config["strategy"]
     research_mode = strategy.get("research_mode", False)
     executions_enabled = strategy.get("executions_enabled", ["BASE_RR1"])
 
-    trade_store = TradeStore(Path("trade_records.json") if research_mode else None)
+    trade_store = TradeStore(base_dir / "trade_records.json" if research_mode else None)
 
     for symbol in ["BTC/USDT","ETH/USDT","BNB/USDT"]:
     # for symbol in ["BTC/USDT","ETH/USDT","XRP/USDT","LTC/USDT"]:
@@ -81,7 +82,7 @@ def main() -> None:
                 "volume": v
             })
 
-        with open("candles2.json", "w+", encoding="utf-8") as f:
+        with (base_dir / "candles2.json").open("w+", encoding="utf-8") as f:
             json.dump(candlesRaw, f, ensure_ascii=False, indent=2)
 
 
@@ -271,7 +272,7 @@ def main() -> None:
                 # print(t.stop, t.stop_price, t.stop - t.stop_price, t.entry, t.take)
 
     if not research_mode:
-        with open("data.json", "w", encoding="utf-8") as f:
+        with (base_dir / "data.json").open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
         if research_mode:
