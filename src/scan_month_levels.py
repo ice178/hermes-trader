@@ -43,6 +43,8 @@ def main() -> None:
     research_mode = strategy.get("research_mode", False)
     executions_enabled = strategy.get("executions_enabled", ["BASE_RR1"])
 
+    trade_store = TradeStore(Path("trade_records.json") if research_mode else None)
+
     for symbol in ["BTC/USDT","ETH/USDT","BNB/USDT"]:
     # for symbol in ["BTC/USDT","ETH/USDT","XRP/USDT","LTC/USDT"]:
         timeframe = strategy.get("timeframe", "1h")
@@ -88,7 +90,6 @@ def main() -> None:
         levels.build(candles)
         trades: List[Trade] = []
         execution_states = []
-        trade_store = TradeStore(Path("trade_records.json") if research_mode else None)
 
         levels_raw = []
 
@@ -273,98 +274,98 @@ def main() -> None:
         with open("data.json", "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-    if research_mode:
-        for state in execution_states:
-            if state.open_index is None or state.open_index < 0:
-                continue
-            close_index = state.close_index if state.close_index is not None else len(candles) - 1
-            mfe_mae = compute_mfe_mae(
-                candles=candles,
-                open_index=state.open_index,
-                close_index=close_index,
-                entry_price=state.entry_price,
-                risk=state.risk,
-                side=state.idea.side,
-            )
-            entry_features = state.entry_features
-            commission_config = strategy.get("commissions", {})
-            commission = None
-            slippage = None
-            commission_r = None
-            slippage_r = None
-            if commission_config.get("enabled", False):
-                rate = commission_config.get("rate", 0.0)
-                commission = rate * state.entry_price
-                if state.risk:
-                    commission_r = commission / state.risk
-                slippage_ticks = commission_config.get("slippage_ticks", 0)
-                tick_size = strategy.get("level_price_rounding", {}).get("tick_size", 0) or 0
-                slippage = slippage_ticks * tick_size
-                if state.risk:
-                    slippage_r = slippage / state.risk
+        if research_mode:
+            for state in execution_states:
+                if state.open_index is None or state.open_index < 0:
+                    continue
+                close_index = state.close_index if state.close_index is not None else len(candles) - 1
+                mfe_mae = compute_mfe_mae(
+                    candles=candles,
+                    open_index=state.open_index,
+                    close_index=close_index,
+                    entry_price=state.entry_price,
+                    risk=state.risk,
+                    side=state.idea.side,
+                )
+                entry_features = state.entry_features
+                commission_config = strategy.get("commissions", {})
+                commission = None
+                slippage = None
+                commission_r = None
+                slippage_r = None
+                if commission_config.get("enabled", False):
+                    rate = commission_config.get("rate", 0.0)
+                    commission = rate * state.entry_price
+                    if state.risk:
+                        commission_r = commission / state.risk
+                    slippage_ticks = commission_config.get("slippage_ticks", 0)
+                    tick_size = strategy.get("level_price_rounding", {}).get("tick_size", 0) or 0
+                    slippage = slippage_ticks * tick_size
+                    if state.risk:
+                        slippage_r = slippage / state.risk
 
-            record = {
-                "symbol": state.idea.symbol,
-                "timeframe": state.idea.timeframe,
-                "pattern": state.idea.pattern,
-                "side": state.idea.side,
-                "signal_candle_time": state.idea.signal_candle_time,
-                "idea_id": state.idea_id,
-                "execution_variant": state.execution_variant,
-                "execution_id": state.execution_id,
-                "is_live": False,
-                "filter_passed": state.filter_passed,
-                "filter_reject_reason": state.filter_reject_reason,
-                "risk_R": 1.0,
-                "tp_R": state.tp_r,
-                "realized_R": state.realized_r,
-                "exit_reason": state.exit_reason or "unknown",
-                "bars_in_trade": (close_index - state.open_index + 1) if state.open_index is not None else None,
-                "duration_seconds": (
-                    (candles[close_index].timestamp - state.opened_at) // 1000
-                    if state.open_index is not None
-                    else None
-                ),
-                "commission": commission,
-                "slippage": slippage,
-                "commission_R": commission_r,
-                "slippage_R": slippage_r,
-                "mfe_price": mfe_mae["mfe_price"],
-                "mae_price": mfe_mae["mae_price"],
-                "mfe_R": mfe_mae["mfe_R"],
-                "mae_R": mfe_mae["mae_R"],
-                "reached_0_3R": mfe_mae["reached_0_3R"],
-                "reached_0_5R": mfe_mae["reached_0_5R"],
-                "reached_1R": mfe_mae["reached_1R"],
-                "time_to_0_3R_bars": mfe_mae["time_to_0_3R_bars"],
-                "time_to_0_5R_bars": mfe_mae["time_to_0_5R_bars"],
-                "time_to_1R_bars": mfe_mae["time_to_1R_bars"],
-                "atr14": entry_features.atr14,
-                "ema200": entry_features.ema200,
-                "ema200_side": entry_features.ema200_side,
-                "sl_in_atr": entry_features.sl_in_atr,
-                "tp_in_atr": entry_features.tp_in_atr,
-                "distance_to_level_atr": entry_features.distance_to_level_atr,
-                "hour_utc": entry_features.hour_utc,
-                "session": entry_features.session,
-                "candle_range": entry_features.candle_range,
-                "body_size": entry_features.body_size,
-                "upper_wick": entry_features.upper_wick,
-                "lower_wick": entry_features.lower_wick,
-                "wick_ratio": entry_features.wick_ratio,
-                "close_location": entry_features.close_location,
-                "touched_level": entry_features.touched_level,
-                "reclaimed_level": entry_features.reclaimed_level,
-                "sweep_size_atr": entry_features.sweep_size_atr,
-                "entry_price": state.entry_price,
-                "stop_loss": state.stop_loss,
-                "take_profit": state.take_profit,
-                "opened_at": isoformat_utc(state.opened_at),
-                "closed_at": isoformat_utc(candles[close_index].timestamp),
-            }
-            trade_store.add_record(record)
+                record = {
+                    "symbol": state.idea.symbol,
+                    "timeframe": state.idea.timeframe,
+                    "pattern": state.idea.pattern,
+                    "side": state.idea.side,
+                    "signal_candle_time": state.idea.signal_candle_time,
+                    "idea_id": state.idea_id,
+                    "execution_variant": state.execution_variant,
+                    "execution_id": state.execution_id,
+                    "is_live": False,
+                    "filter_passed": state.filter_passed,
+                    "filter_reject_reason": state.filter_reject_reason,
+                    "risk_R": 1.0,
+                    "tp_R": state.tp_r,
+                    "realized_R": state.realized_r,
+                    "exit_reason": state.exit_reason or "unknown",
+                    "bars_in_trade": (close_index - state.open_index + 1) if state.open_index is not None else None,
+                    "duration_seconds": (
+                        (candles[close_index].timestamp - state.opened_at) // 1000
+                        if state.open_index is not None
+                        else None
+                    ),
+                    "commission": commission,
+                    "slippage": slippage,
+                    "commission_R": commission_r,
+                    "slippage_R": slippage_r,
+                    "mfe_price": mfe_mae["mfe_price"],
+                    "mae_price": mfe_mae["mae_price"],
+                    "mfe_R": mfe_mae["mfe_R"],
+                    "mae_R": mfe_mae["mae_R"],
+                    "reached_0_3R": mfe_mae["reached_0_3R"],
+                    "reached_0_5R": mfe_mae["reached_0_5R"],
+                    "reached_1R": mfe_mae["reached_1R"],
+                    "time_to_0_3R_bars": mfe_mae["time_to_0_3R_bars"],
+                    "time_to_0_5R_bars": mfe_mae["time_to_0_5R_bars"],
+                    "time_to_1R_bars": mfe_mae["time_to_1R_bars"],
+                    "atr14": entry_features.atr14,
+                    "ema200": entry_features.ema200,
+                    "ema200_side": entry_features.ema200_side,
+                    "sl_in_atr": entry_features.sl_in_atr,
+                    "tp_in_atr": entry_features.tp_in_atr,
+                    "distance_to_level_atr": entry_features.distance_to_level_atr,
+                    "hour_utc": entry_features.hour_utc,
+                    "session": entry_features.session,
+                    "candle_range": entry_features.candle_range,
+                    "body_size": entry_features.body_size,
+                    "upper_wick": entry_features.upper_wick,
+                    "lower_wick": entry_features.lower_wick,
+                    "wick_ratio": entry_features.wick_ratio,
+                    "close_location": entry_features.close_location,
+                    "touched_level": entry_features.touched_level,
+                    "reclaimed_level": entry_features.reclaimed_level,
+                    "sweep_size_atr": entry_features.sweep_size_atr,
+                    "entry_price": state.entry_price,
+                    "stop_loss": state.stop_loss,
+                    "take_profit": state.take_profit,
+                    "opened_at": isoformat_utc(state.opened_at),
+                    "closed_at": isoformat_utc(candles[close_index].timestamp),
+                }
+                trade_store.add_record(record)
 
-        trade_store.save()
+            trade_store.save()
 
     print()
     print(f"Profitable trades: {profit}")
