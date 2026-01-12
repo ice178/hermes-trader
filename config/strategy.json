@@ -1,7 +1,7 @@
 {
   "strategy": {
     "timeframe": "1h",
-    "research_mode": false,
+    "research_mode": true,
     "executions_enabled": ["BASE_RR1"],
     "level_price_rounding": {
       "decimals": 2

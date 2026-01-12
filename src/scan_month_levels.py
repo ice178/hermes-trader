@@ -129,23 +129,19 @@ def main() -> None:
                 if match.candle.timestamp == current.timestamp
             ]
 
-            # if len(results) > 1:
-            #     print(results)
-            #     print("\n")
-
             for match in results:
                 candle_date_time = datetime.fromtimestamp(match.candle.timestamp / 1000,tz=timezone.utc)
                 if candle_date_time.weekday() >= 5:
                     continue
 
-                if match.level.weight == 0.5:
-                    continue
-
-                if match.pattern == "pin_bar" and match.direction == "long":
-                    continue
-
-                if match.pattern == "pin_bar" and match.direction == "short" and match.level.weight == 1:
-                    continue
+                # if match.level.weight == 0.5:
+                #     continue
+                #
+                # if match.pattern == "pin_bar" and match.direction == "long":
+                #     continue
+                #
+                # if match.pattern == "pin_bar" and match.direction == "short" and match.level.weight == 1:
+                #     continue
 
                 if not research_mode:
                     trades.append(
@@ -271,10 +267,6 @@ def main() -> None:
                 # print(f"{t.result} {t.pattern} at {ts.isoformat()} level {t.level_price} from {lvl_ts.isoformat()}")
                 # print(t.stop, t.stop_price, t.stop - t.stop_price, t.entry, t.take)
 
-    if not research_mode:
-        with (base_dir / "data.json").open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
         if research_mode:
             for state in execution_states:
                 if state.open_index is None or state.open_index < 0:
@@ -365,6 +357,10 @@ def main() -> None:
                     "closed_at": isoformat_utc(candles[close_index].timestamp),
                 }
                 trade_store.add_record(record)
+
+    if not research_mode:
+        with (base_dir / "data.json").open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
     if research_mode:
         trade_store.save()
