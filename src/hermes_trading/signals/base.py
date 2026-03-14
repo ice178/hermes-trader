@@ -17,7 +17,7 @@ class SignalMatch:
     pattern: str
     direction: Literal["long", "short"]
     candle: Candle
-    level: Level
+    level: Level|None
 
 
 class Signal(ABC):

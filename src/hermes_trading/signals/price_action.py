@@ -13,6 +13,55 @@ from .base import Signal, SignalMatch
 class PriceActionSignal(Signal):
     """Detects price action patterns within a batch of candles."""
 
+    def evaluate_without_levels(self, candles: CandleBatch) -> List[SignalMatch]:
+        matches: List[SignalMatch] = []
+        bars = candles.candles
+
+        for idx, bar in enumerate(bars):
+            if self._is_buy_pin_bar(bar):
+                matches.append(SignalMatch(
+                    pattern="pin_bar",
+                    direction="long",
+                    candle=bar,
+                    level=None,
+                ))
+
+            if self._is_sell_pin_bar(bar):
+                matches.append(SignalMatch(
+                    pattern="pin_bar",
+                    direction="short",
+                    candle=bar,
+                    level=None,
+                ))
+
+            if idx > 0:
+                prev = bars[idx - 1]
+
+                # if self._is_bullish_engulfing(prev, bar):
+                #     matches.extend(
+                #         self._build_matches("bullish_engulfing", "long", bar, [])
+                #     )
+
+                if self._is_railway_tracks_long(prev, bar):
+                    matches.append(SignalMatch(
+                        pattern="railway_tracks",
+                        direction="long",
+                        candle=bar,
+                        level=None,
+                    ))
+
+                if self._is_railway_tracks_short(prev, bar):
+                    matches.append(SignalMatch(
+                        pattern="railway_tracks",
+                        direction="short",
+                        candle=bar,
+                        level=None,
+                    ))
+
+        return matches
+
+
+
     def evaluate(self, candles: CandleBatch, levels: List[Level]) -> List[SignalMatch]:  # type: ignore[override]
         """Return pattern matches that align with qualified liquidity levels."""
 

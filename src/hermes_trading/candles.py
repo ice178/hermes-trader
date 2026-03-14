@@ -15,6 +15,8 @@ class Candle:
     low: float
     close: float
     volume: float
+    symbol: str|None
+    timeframe: str|None
 
 
 @dataclass
@@ -23,6 +25,6 @@ class CandleBatch:
 
     candles: List[Candle]
 
-    def __post_init__(self) -> None:
-        if len(self.candles) != 10:
-            raise ValueError("CandleBatch must contain exactly 10 candles")
+    # def __post_init__(self) -> None:
+        # if len(self.candles) != 10:
+        #     raise ValueError("CandleBatch must contain exactly 10 candles")

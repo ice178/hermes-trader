@@ -30,13 +30,13 @@ def main() -> None:
 
     for connector in connectors:
 
-        for symbol in ["BTC/USDT","ETH/USDT","BNB/USDT"]:
+        for symbol in ["BTC/USDT"]:
+        # for symbol in ["BTC/USDT","ETH/USDT","BNB/USDT"]:
         # for symbol in ["BTC/USDT","ETH/USDT","XRP/USDT","LTC/USDT"]:
-            timeframe = "1h"
+            timeframe = "15m"
             # since = int((datetime.now(tz=timezone.utc) - timedelta(days=365)).timestamp() * 1000)
-            # since = int(datetime.fromisoformat('2024-10-15T00:00:00.000000+00:00').timestamp() * 1000)
-            # since = int(datetime.fromisoformat('2025-09-01T00:00:00.000000+00:00').timestamp() * 1000)
-            since = int(datetime.fromisoformat('2025-01-01T00:00:00.000000+00:00').timestamp() * 1000)
+            # since = int(datetime.fromisoformat('2025-01-01T00:00:00.000000+00:00').timestamp() * 1000)
+            since = int(datetime.fromisoformat('2026-01-11T00:00:00.000000+00:00').timestamp() * 1000)
             limit = None
             # limit = 720
 
@@ -82,8 +82,8 @@ def main() -> None:
                     "type": level.type
                 })
 
-            # with open("levels.json", "w+", encoding="utf-8") as f:
-            #     json.dump(levels_raw, f, ensure_ascii=False, indent=2)
+            with open("levels.json", "w+", encoding="utf-8") as f:
+                json.dump(levels_raw, f, ensure_ascii=False, indent=2)
 
 
             for i in range(9, len(candles)):
@@ -111,8 +111,8 @@ def main() -> None:
                     if candle_date_time.weekday() >= 5:
                         continue
 
-                    if match.level.weight == 0.5:
-                        continue
+                    # if match.level.weight == 0.5:
+                    #     continue
 
                     # if match.pattern == "pin_bar" and match.direction == "long":
                     #     continue
