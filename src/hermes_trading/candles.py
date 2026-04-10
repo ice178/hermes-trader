@@ -14,9 +14,9 @@ class Candle:
     high: float
     low: float
     close: float
-    volume: float
-    symbol: str|None
-    timeframe: str|None
+    volume: float = 0.0
+    symbol: str | None = None
+    timeframe: str | None = None
 
 
 @dataclass

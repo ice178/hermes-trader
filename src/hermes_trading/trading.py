@@ -33,6 +33,21 @@ class Trade:
     stop_is_moved: bool = False
 
 
+def calculate_risk_distance(
+    candle: Candle,
+    pattern: str,
+    direction: Literal["long", "short"],
+) -> float:
+    """Return the stop distance implied by the current trade formula."""
+
+    if direction == "long":
+        pivot = candle.open if pattern == "railway_tracks" else candle.low
+        return max(candle.close - pivot, 0.0) * 1.1
+
+    pivot = candle.open if pattern == "railway_tracks" else candle.high
+    return max(pivot - candle.close, 0.0) * 1.1
+
+
 def open_trade(
     candle: Candle,
     pattern: str,
@@ -54,22 +69,12 @@ def open_trade(
 
     profit = losses * risk_multiplicator
 
-    if direction == "long":
-        if pattern == 'railway_tracks':
-            low = candle.open
-        else:
-            low = candle.low
+    risk = calculate_risk_distance(candle, pattern, direction)
 
-        risk = max(candle.close - low, 0) * 1.1
+    if direction == "long":
         stop = candle.close - risk
         take = candle.close + risk_multiplicator * risk
     else:
-        if pattern == 'railway_tracks':
-            high = candle.open
-        else:
-            high = candle.high
-
-        risk = max(high - candle.close, 0) * 1.1
         stop = candle.close + risk
         take = candle.close - risk_multiplicator * risk
 

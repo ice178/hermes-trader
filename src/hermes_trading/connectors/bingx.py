@@ -32,8 +32,11 @@ class BingXConnector(ExchangeConnector):
                 high=high,
                 low=low,
                 close=close,
+                volume=volume,
+                symbol=symbol,
+                timeframe=interval,
             )
-            for ts, open_, high, low, close, *_ in ohlcv
+            for ts, open_, high, low, close, volume, *_ in ohlcv
         ]
         return CandleBatch(candles)
 

@@ -1,12 +1,14 @@
 """Hermes Trading Bot core package."""
 
-from . import candles, connectors, liquidity, realtime, signals, telegram, trading
+from . import backtest, candles, connectors, liquidity, realtime, signal_filters, signals, telegram, trading
 
 __all__ = [
+    "backtest",
     "candles",
     "connectors",
     "liquidity",
     "realtime",
+    "signal_filters",
     "signals",
     "telegram",
     "trading",
