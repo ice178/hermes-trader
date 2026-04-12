@@ -18,6 +18,7 @@ from hermes_trading.signal_filters import (
 )
 from hermes_trading.signals import PriceActionSignal
 from hermes_trading.telegram import TelegramClient, TelegramConfig
+from hermes_trading.time_utils import madrid_datetime_from_timestamp_ms
 
 SENT_SIGNALS_PATH = Path(__file__).resolve().parent / "signals_bot_sent.json"
 MIN_METRIC_INCREASE_PCT = DEFAULT_MIN_METRIC_INCREASE_PCT
@@ -68,6 +69,8 @@ def format_percentage_pair(values: tuple[float, float]) -> str:
 def reference_context_label(pattern: str) -> str:
     if pattern == "railway_tracks":
         return "2 candles before pattern"
+    if pattern == "inside_bar":
+        return "2 candles before mother candle"
     return "previous 2 candles"
 
 
@@ -78,7 +81,7 @@ def format_signal_message(signal: FilteredSignal, index: int, total: int) -> str
     symbol = html.escape(str(match.candle.symbol))
     timeframe = html.escape(str(match.candle.timeframe))
     open_price = html.escape(str(match.candle.open))
-    timestamp = html.escape(str(match.candle.datetime))
+    timestamp = html.escape(madrid_datetime_from_timestamp_ms(match.candle.timestamp))
     reference_context = html.escape(reference_context_label(match.pattern))
     volatility = format_percentage_pair(signal.volatility_increase_pct)
     volume = format_percentage_pair(signal.volume_increase_pct)
@@ -140,7 +143,7 @@ def main() -> None:
                 candles = [
                     Candle(
                         timestamp=ts,
-                        datetime=datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
+                        datetime=madrid_datetime_from_timestamp_ms(int(ts)),
                         open=o,
                         high=h,
                         low=l,

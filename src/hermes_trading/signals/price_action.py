@@ -13,54 +13,24 @@ from .base import Signal, SignalMatch
 class PriceActionSignal(Signal):
     """Detects price action patterns within a batch of candles."""
 
+    INSIDE_BAR_MIN_BODY_COVERAGE = 0.9
+
     def evaluate_without_levels(self, candles: CandleBatch) -> List[SignalMatch]:
         matches: List[SignalMatch] = []
         bars = candles.candles
 
         for idx, bar in enumerate(bars):
-            if self._is_buy_pin_bar(bar):
-                matches.append(SignalMatch(
-                    pattern="pin_bar",
-                    direction="long",
-                    candle=bar,
-                    level=None,
-                ))
-
-            if self._is_sell_pin_bar(bar):
-                matches.append(SignalMatch(
-                    pattern="pin_bar",
-                    direction="short",
-                    candle=bar,
-                    level=None,
-                ))
-
-            if idx > 0:
-                prev = bars[idx - 1]
-
-                # if self._is_bullish_engulfing(prev, bar):
-                #     matches.extend(
-                #         self._build_matches("bullish_engulfing", "long", bar, [])
-                #     )
-
-                if self._is_railway_tracks_long(prev, bar):
-                    matches.append(SignalMatch(
-                        pattern="railway_tracks",
-                        direction="long",
+            for pattern, direction in self._detect_patterns(bars, idx):
+                matches.append(
+                    SignalMatch(
+                        pattern=pattern,
+                        direction=direction,
                         candle=bar,
                         level=None,
-                    ))
-
-                if self._is_railway_tracks_short(prev, bar):
-                    matches.append(SignalMatch(
-                        pattern="railway_tracks",
-                        direction="short",
-                        candle=bar,
-                        level=None,
-                    ))
+                    )
+                )
 
         return matches
-
-
 
     def evaluate(self, candles: CandleBatch, levels: List[Level]) -> List[SignalMatch]:  # type: ignore[override]
         """Return pattern matches that align with qualified liquidity levels."""
@@ -81,33 +51,73 @@ class PriceActionSignal(Signal):
             buy_levels = [lvl for lvl in touched_levels if lvl.type == "low"]
             sell_levels = [lvl for lvl in touched_levels if lvl.type == "high"]
 
-            if buy_levels and self._is_buy_pin_bar(bar):
-                matches.extend(
-                    self._build_matches("pin_bar", "long", bar, buy_levels)
-                )
-
-            if sell_levels and self._is_sell_pin_bar(bar):
-                matches.extend(
-                    self._build_matches("pin_bar", "short", bar, sell_levels)
-                )
-
-            if idx > 0:
-                prev = bars[idx - 1]
-
-                if buy_levels and self._is_bullish_engulfing(prev, bar):
+            for pattern, direction in self._detect_patterns(bars, idx):
+                if direction == "long" and buy_levels:
                     matches.extend(
-                        self._build_matches("bullish_engulfing", "long", bar, buy_levels)
+                        self._build_matches(pattern, direction, bar, buy_levels)
+                    )
+                if direction == "short" and sell_levels:
+                    matches.extend(
+                        self._build_matches(pattern, direction, bar, sell_levels)
                     )
 
-                if buy_levels and self._is_railway_tracks_long(prev, bar):
-                    matches.extend(
-                        self._build_matches("railway_tracks", "long", bar, buy_levels)
-                    )
+        return matches
 
-                if sell_levels and self._is_railway_tracks_short(prev, bar):
-                    matches.extend(
-                        self._build_matches("railway_tracks", "short", bar, sell_levels)
-                    )
+    def _detect_patterns(
+        self,
+        bars: List[Candle],
+        idx: int,
+    ) -> list[tuple[str, Literal["long", "short"]]]:
+        current = bars[idx]
+        matches: list[tuple[str, Literal["long", "short"]]] = []
+        seen: set[tuple[str, Literal["long", "short"]]] = set()
+
+        def add(pattern: str, direction: Literal["long", "short"]) -> None:
+            key = (pattern, direction)
+            if key in seen:
+                return
+            seen.add(key)
+            matches.append(key)
+
+        if self._is_buy_pin_bar(current):
+            add("pin_bar", "long")
+
+        if self._is_sell_pin_bar(current):
+            add("pin_bar", "short")
+
+        if idx == 0:
+            return matches
+
+        prev = bars[idx - 1]
+
+        if self._is_buy_engulfing(prev, current):
+            add("buy_engulfing", "long")
+
+        if self._is_sell_engulfing(prev, current):
+            add("sell_engulfing", "short")
+
+        if self._is_buy_inside_bar(prev, current):
+            add("inside_bar", "long")
+
+        if self._is_sell_inside_bar(prev, current):
+            add("inside_bar", "short")
+
+        if self._is_railway_tracks_long(prev, current):
+            add("railway_tracks", "long")
+
+        if self._is_railway_tracks_short(prev, current):
+            add("railway_tracks", "short")
+
+        if idx < 2:
+            return matches
+
+        prev_prev = bars[idx - 2]
+
+        if self._is_buy_engulfing(prev_prev, prev, current):
+            add("buy_engulfing", "long")
+
+        if self._is_sell_engulfing(prev_prev, prev, current):
+            add("sell_engulfing", "short")
 
         return matches
 
@@ -143,13 +153,91 @@ class PriceActionSignal(Signal):
         return candle.low <= level.price <= candle.high
 
     @staticmethod
-    def _is_bullish_engulfing(prev: Candle, curr: Candle) -> bool:
-        return (
-            prev.close < prev.open
-            and curr.close > curr.open
-            and curr.close > prev.open
-            and curr.open < prev.close
+    def _body_bounds(candle: Candle) -> tuple[float, float]:
+        return (min(candle.open, candle.close), max(candle.open, candle.close))
+
+    @classmethod
+    def _is_buy_engulfing(cls, *candles: Candle) -> bool:
+        if len(candles) < 2:
+            return False
+
+        *engulfed_candles, current = candles
+        if current.close <= current.open:
+            return False
+        if any(candle.close >= candle.open for candle in engulfed_candles):
+            return False
+
+        current_low, current_high = cls._body_bounds(current)
+        engulfed_lows = [cls._body_bounds(candle)[0] for candle in engulfed_candles]
+        engulfed_highs = [cls._body_bounds(candle)[1] for candle in engulfed_candles]
+
+        return current_low < min(engulfed_lows) and current_high > max(engulfed_highs)
+
+    @classmethod
+    def _is_sell_engulfing(cls, *candles: Candle) -> bool:
+        if len(candles) < 2:
+            return False
+
+        *engulfed_candles, current = candles
+        if current.close >= current.open:
+            return False
+        if any(candle.close <= candle.open for candle in engulfed_candles):
+            return False
+
+        current_low, current_high = cls._body_bounds(current)
+        engulfed_lows = [cls._body_bounds(candle)[0] for candle in engulfed_candles]
+        engulfed_highs = [cls._body_bounds(candle)[1] for candle in engulfed_candles]
+
+        return current_low < min(engulfed_lows) and current_high > max(engulfed_highs)
+
+    @classmethod
+    def _is_buy_inside_bar(cls, mother: Candle, current: Candle) -> bool:
+        return cls._inside_bar_matches(
+            mother,
+            current,
+            mother_is_bullish=False,
+            current_is_bullish=True,
         )
+
+    @classmethod
+    def _is_sell_inside_bar(cls, mother: Candle, current: Candle) -> bool:
+        return cls._inside_bar_matches(
+            mother,
+            current,
+            mother_is_bullish=True,
+            current_is_bullish=False,
+        )
+
+    @classmethod
+    def _inside_bar_matches(
+        cls,
+        mother: Candle,
+        current: Candle,
+        *,
+        mother_is_bullish: bool,
+        current_is_bullish: bool,
+    ) -> bool:
+        if (mother.close > mother.open) != mother_is_bullish:
+            return False
+        if mother.close == mother.open:
+            return False
+
+        if (current.close > current.open) != current_is_bullish:
+            return False
+        if current.close == current.open:
+            return False
+
+        mother_low, mother_high = cls._body_bounds(mother)
+        current_low, current_high = cls._body_bounds(current)
+        mother_body = mother_high - mother_low
+        current_body = current_high - current_low
+
+        if mother_body <= 0 or current_body <= 0:
+            return False
+        if current_low < mother_low or current_high > mother_high:
+            return False
+
+        return current_body >= mother_body * cls.INSIDE_BAR_MIN_BODY_COVERAGE
 
     @staticmethod
     def _is_buy_pin_bar(c: Candle) -> bool:
