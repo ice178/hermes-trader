@@ -4,17 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import html
-import json
 import math
-import os
-from pathlib import Path
 
-from hermes_trading.candles import Candle, CandleBatch
+from hermes_trading.candles import Candle
 from hermes_trading.connectors import BingXConnector
 from hermes_trading.signal_filters import (
     DEFAULT_MIN_METRIC_INCREASE_PCT,
     FilteredSignal,
     build_filtered_signal,
+    latest_fresh_batch,
     latest_matches,
 )
 from hermes_trading.signals import PriceActionSignal
@@ -22,14 +20,11 @@ from hermes_trading.telegram import TelegramClient, TelegramConfig
 from hermes_trading.time_utils import (
     is_candle_closed,
     madrid_datetime_from_timestamp_ms,
+    timeframe_to_milliseconds,
 )
 
-DEFAULT_SENT_SIGNALS_PATH = Path(__file__).resolve().parent / "signals_bot_sent.json"
-ENV_SENT_SIGNALS_PATH = "HERMES_SENT_SIGNALS_PATH"
-SENT_SIGNALS_PATH = Path(
-    os.getenv(ENV_SENT_SIGNALS_PATH, str(DEFAULT_SENT_SIGNALS_PATH))
-).expanduser()
 MIN_METRIC_INCREASE_PCT = DEFAULT_MIN_METRIC_INCREASE_PCT
+SCAN_INTERVAL_MS = timeframe_to_milliseconds("15m")
 
 
 def match_key(signal: FilteredSignal) -> str:
@@ -43,22 +38,6 @@ def match_key(signal: FilteredSignal) -> str:
             str(match.candle.symbol),
         ]
     )
-
-
-def load_sent_keys(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return set()
-    if not isinstance(payload, list):
-        return set()
-    return {str(item) for item in payload}
-
-
-def save_sent_keys(path: Path, keys: set[str]) -> None:
-    path.write_text(json.dumps(sorted(keys), ensure_ascii=True, indent=2), encoding="utf-8")
 
 
 def format_percentage(value: float) -> str:
@@ -130,10 +109,7 @@ def main() -> None:
     client = TelegramClient(TelegramConfig.from_env())
     connectors = [BingXConnector()]
     timeframes = ["15m", "30m", "1h", "4h"]
-    # symbols = ["BTC/USDT", "ETH/USDT", "XRP/USDT", "LINK/USDT", "TRX/USDT", "SOL/USDT", "NEAR/USDT", "ATOM/USDT", "BNB/USDT"]
-    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT"]
-
-    sent_keys = load_sent_keys(SENT_SIGNALS_PATH)
+    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "NEAR/USDT"]
 
     for connector in connectors:
         signals: list[FilteredSignal] = []
@@ -166,19 +142,24 @@ def main() -> None:
                     if is_candle_closed(int(ts), timeframe, now_ms=now_ms)
                 ]
 
+                batch = latest_fresh_batch(
+                    candles,
+                    timeframe,
+                    now_ms=now_ms,
+                    freshness_ms=SCAN_INTERVAL_MS,
+                )
+                if batch is None:
+                    continue
+
                 detector = PriceActionSignal()
-
-                for i in range(3, len(candles)):
-                    batch = CandleBatch(candles[i - 3: i + 1])
-
-                    for match in latest_matches(detector, batch):
-                        filtered_signal = build_filtered_signal(
-                            match,
-                            batch,
-                            min_metric_increase_pct=MIN_METRIC_INCREASE_PCT,
-                        )
-                        if filtered_signal is not None:
-                            signals.append(filtered_signal)
+                for match in latest_matches(detector, batch):
+                    filtered_signal = build_filtered_signal(
+                        match,
+                        batch,
+                        min_metric_increase_pct=MIN_METRIC_INCREASE_PCT,
+                    )
+                    if filtered_signal is not None:
+                        signals.append(filtered_signal)
 
         seen = set()
         unique_signals: list[FilteredSignal] = []
@@ -189,23 +170,18 @@ def main() -> None:
                 seen.add(key)
                 unique_signals.append(signal)
 
-        new_signals = [signal for signal in unique_signals if match_key(signal) not in sent_keys]
-
-        if len(new_signals) > 0:
+        if len(unique_signals) > 0:
             client.send_text(
-                f"<b>Signals found:</b> <code>{len(new_signals)}</code>",
+                f"<b>Signals found:</b> <code>{len(unique_signals)}</code>",
                 parse_mode="HTML",
             )
         # else:
         #     client.send_text("<b>No new signals found.</b>", parse_mode="HTML")
 
-        total_signals = len(new_signals)
-        for idx, result in enumerate(new_signals, start=1):
+        total_signals = len(unique_signals)
+        for idx, result in enumerate(unique_signals, start=1):
             text = format_signal_message(result, idx, total_signals)
             client.send_text(text, parse_mode="HTML")
-            sent_keys.add(match_key(result))
-
-        save_sent_keys(SENT_SIGNALS_PATH, sent_keys)
 
 
 if __name__ == "__main__":

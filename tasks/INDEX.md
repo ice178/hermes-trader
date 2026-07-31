@@ -6,13 +6,13 @@ Every meaningful task should be linked from this file. Name task files `task-NNN
 
 | Task | Status | Owner | Updated | Notes |
 |---|---|---|---|---|
-| [Task 001: Prepare the Telegram signal bot for server deployment](active/task-001.md) | Review | Tomasso / Codex | 2026-07-31 | Ready for host confirmation and deployment review |
+| [Task 001: Prepare the Telegram signal bot for server deployment](active/task-001.md) | Review | Tomasso / Codex | 2026-07-31 | Deployment guide aligned with stateless production operation |
+| [Task 002: Process only newly closed candles](active/task-002.md) | Review | Tomasso / Codex | 2026-07-31 | Stateless fresh-close implementation ready for review |
 
 ## Backlog
 
 | Task | Status | Owner | Updated | Notes |
 |---|---|---|---|---|
-| [Task 002: Process only newly closed candles](backlog/task-002.md) | Backlog | Tomasso / Codex | 2026-07-31 | Watermarks, catch-up behavior, idempotency, and state migration |
 
 ## Done
 

@@ -34,9 +34,8 @@ sudo apt install --yes python3 python3-venv git ca-certificates
 Создайте отдельного системного пользователя и каталоги:
 
 ```bash
-sudo useradd --system --home /var/lib/hermes-trading --shell /usr/sbin/nologin hermes
+sudo useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin hermes
 sudo install -d -o hermes -g hermes -m 0750 /opt/hermes-trading
-sudo install -d -o hermes -g hermes -m 0750 /var/lib/hermes-trading
 sudo install -d -o root -g hermes -m 0750 /etc/hermes-trading
 ```
 
@@ -71,31 +70,13 @@ sudo install -o root -g hermes -m 0640 \
 sudoedit /etc/hermes-trading/hermes-signals-bot.env
 ```
 
-Задайте новый `TELEGRAM_BOT_TOKEN`, нужный `TELEGRAM_CHAT_ID` и измените путь:
+Задайте новый `TELEGRAM_BOT_TOKEN` и нужный `TELEGRAM_CHAT_ID`.
 
-```dotenv
-HERMES_SENT_SIGNALS_PATH=/var/lib/hermes-trading/signals_bot_sent.json
-```
+`systemd` читает этот файл через `EnvironmentFile`; Python сам `.env` не читает.
+Дополнительная библиотека для этого не нужна. Оставьте
+`TELEGRAM_SSL_INSECURE=0`.
 
-`systemd` читает этот файл через `EnvironmentFile`; дополнительная Python-библиотека
-для `.env` не нужна. Оставьте `TELEGRAM_SSL_INSECURE=0`.
-
-## 5. Перенести историю отправленных сигналов
-
-Файл `signals_bot_sent.json` не даёт боту повторно отправлять уже известные
-сигналы. Перед первым серверным запуском скопируйте текущий локальный файл, если
-он существует:
-
-```bash
-scp src/signals_bot_sent.json <server>:/tmp/signals_bot_sent.json
-ssh <server> sudo install -o hermes -g hermes -m 0600 \
-  /tmp/signals_bot_sent.json /var/lib/hermes-trading/signals_bot_sent.json
-```
-
-После проверки удалите временную копию из `/tmp`. Если начать с пустого state,
-первый запуск может повторно отправить старые сигналы.
-
-## 6. Установить service и timer
+## 5. Установить service и timer
 
 ```bash
 sudo install -o root -g root -m 0644 \
@@ -134,8 +115,10 @@ sudo journalctl -u hermes-signals-bot.service --since today
 sudo systemctl start hermes-signals-bot.service
 ```
 
-Логи хранятся в journald; отдельные файлы логов не нужны. Проверяйте, что
-`/var/lib/hermes-trading/signals_bot_sent.json` обновляется после запусков.
+Логи хранятся в journald; отдельные файлы логов не нужны. Бот не хранит runtime
+state: он анализирует только свечи, закрывшиеся за последние 15 минут. Не
+запускайте его вручную несколько раз в одном интервале, иначе одинаковое
+уведомление может быть отправлено повторно.
 
 ## Обновление
 
@@ -151,8 +134,8 @@ sudo systemctl start hermes-signals-bot.timer
 ```
 
 Если проверка не прошла, не запускайте timer. Верните предыдущий проверенный
-commit, повторите установку и ручной запуск. Environment и state находятся вне
-репозитория, поэтому обновление кода их не перезаписывает.
+commit, повторите установку и ручной запуск. Environment находится вне
+репозитория, поэтому обновление кода его не перезаписывает.
 
 ## Остановка и удаление
 
@@ -164,5 +147,5 @@ sudo rm /etc/systemd/system/hermes-signals-bot.timer
 sudo systemctl daemon-reload
 ```
 
-Не удаляйте `/etc/hermes-trading` и `/var/lib/hermes-trading`, пока не сохранены
-секреты и state. Код можно удалить отдельно после подтверждения rollback.
+Не удаляйте `/etc/hermes-trading`, пока не сохранены секреты. Код можно удалить
+отдельно после подтверждения rollback.

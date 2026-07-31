@@ -41,6 +41,27 @@ def is_candle_closed(
     return timestamp_ms + timeframe_to_milliseconds(timeframe) <= current_ms
 
 
+def is_candle_freshly_closed(
+    timestamp_ms: int,
+    timeframe: str,
+    *,
+    freshness_ms: int,
+    now_ms: int | None = None,
+) -> bool:
+    """Return whether a candle closed within the current freshness window."""
+
+    if freshness_ms <= 0:
+        raise ValueError("freshness_ms must be positive")
+    current_ms = (
+        now_ms
+        if now_ms is not None
+        else int(datetime.now(timezone.utc).timestamp() * 1000)
+    )
+    close_ms = timestamp_ms + timeframe_to_milliseconds(timeframe)
+    close_age_ms = current_ms - close_ms
+    return 0 <= close_age_ms < freshness_ms
+
+
 def madrid_datetime_from_timestamp_ms(timestamp_ms: int) -> str:
     """Return an ISO datetime string in Europe/Madrid for a millisecond timestamp."""
 

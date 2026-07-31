@@ -21,7 +21,7 @@ class Candle:
 
 @dataclass
 class CandleBatch:
-    """Container for exactly ten sequential candles."""
+    """Container for sequential candles."""
 
     candles: List[Candle]
 

@@ -22,5 +22,4 @@ ProtectControlGroups=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 RestrictSUIDSGID=yes
-ReadWritePaths=/var/lib/hermes-trading
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

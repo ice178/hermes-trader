@@ -3,6 +3,7 @@ from hermes_trading.liquidity import Level
 from hermes_trading.signal_filters import (
     build_filtered_signal,
     filtered_latest_matches,
+    latest_fresh_batch,
     metric_candle,
     reference_candles,
 )
@@ -51,6 +52,46 @@ def test_filtered_latest_matches_detects_buy_engulfing() -> None:
     assert len(results) == 1
     assert results[0].match.pattern == "buy_engulfing"
     assert results[0].match.direction == "long"
+
+
+def test_latest_fresh_batch_keeps_only_final_context() -> None:
+    timeframe_ms = 15 * 60 * 1000
+    candles = [
+        _cndl(index * timeframe_ms, 100, 103, 99, 101, volume=100)
+        for index in range(6)
+    ]
+    latest_close = candles[-1].timestamp + timeframe_ms
+
+    batch = latest_fresh_batch(
+        candles,
+        "15m",
+        now_ms=latest_close + 60_000,
+        freshness_ms=timeframe_ms,
+    )
+
+    assert batch is not None
+    assert [candle.timestamp for candle in batch.candles] == [
+        candle.timestamp for candle in candles[-4:]
+    ]
+
+
+def test_latest_fresh_batch_skips_expired_latest_candle() -> None:
+    timeframe_ms = 30 * 60 * 1000
+    candles = [
+        _cndl(index * timeframe_ms, 100, 103, 99, 101, volume=100)
+        for index in range(4)
+    ]
+    latest_close = candles[-1].timestamp + timeframe_ms
+
+    assert (
+        latest_fresh_batch(
+            candles,
+            "30m",
+            now_ms=latest_close + 15 * 60 * 1000,
+            freshness_ms=15 * 60 * 1000,
+        )
+        is None
+    )
 
 
 def test_inside_bar_filter_uses_mother_candle_for_metrics() -> None:

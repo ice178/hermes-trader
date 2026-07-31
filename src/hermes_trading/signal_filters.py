@@ -9,8 +9,34 @@ from typing import Iterable, Sequence
 from .candles import Candle, CandleBatch
 from .liquidity import Level
 from .signals import PriceActionSignal, SignalMatch
+from .time_utils import is_candle_freshly_closed
 
 DEFAULT_MIN_METRIC_INCREASE_PCT = 10.0
+
+
+def latest_fresh_batch(
+    candles: Sequence[Candle],
+    timeframe: str,
+    *,
+    now_ms: int,
+    freshness_ms: int,
+    context_size: int = 4,
+) -> CandleBatch | None:
+    """Return the latest contextual batch when its final candle just closed."""
+
+    if context_size <= 0:
+        raise ValueError("context_size must be positive")
+    if len(candles) < context_size:
+        return None
+    latest_candle = candles[-1]
+    if not is_candle_freshly_closed(
+        latest_candle.timestamp,
+        timeframe,
+        freshness_ms=freshness_ms,
+        now_ms=now_ms,
+    ):
+        return None
+    return CandleBatch(list(candles[-context_size:]))
 
 
 @dataclass(frozen=True)
