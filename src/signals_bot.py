@@ -2,29 +2,29 @@
 """Fetch last month's candles and print any price action signals."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import html
-import json
 import math
-from pathlib import Path
 
-from hermes_trading.candles import Candle, CandleBatch
+from hermes_trading.candles import Candle
 from hermes_trading.connectors import BingXConnector
-from hermes_trading.signals import PriceActionSignal, SignalMatch
+from hermes_trading.signal_filters import (
+    DEFAULT_MIN_METRIC_INCREASE_PCT,
+    FilteredSignal,
+    build_filtered_signal,
+    latest_fresh_batch,
+    latest_matches,
+)
+from hermes_trading.signals import PriceActionSignal
 from hermes_trading.telegram import TelegramClient, TelegramConfig
+from hermes_trading.time_utils import (
+    is_candle_closed,
+    madrid_datetime_from_timestamp_ms,
+    timeframe_to_milliseconds,
+)
 
-SENT_SIGNALS_PATH = Path(__file__).resolve().parent / "signals_bot_sent.json"
-MIN_METRIC_INCREASE_PCT = 10.0
-
-
-@dataclass(frozen=True)
-class FilteredSignal:
-    """Signal match enriched with volatility and volume deltas."""
-
-    match: SignalMatch
-    volatility_increase_pct: tuple[float, float]
-    volume_increase_pct: tuple[float, float]
+MIN_METRIC_INCREASE_PCT = DEFAULT_MIN_METRIC_INCREASE_PCT
+SCAN_INTERVAL_MS = timeframe_to_milliseconds("15m")
 
 
 def match_key(signal: FilteredSignal) -> str:
@@ -37,39 +37,6 @@ def match_key(signal: FilteredSignal) -> str:
             str(match.candle.timeframe),
             str(match.candle.symbol),
         ]
-    )
-
-
-def load_sent_keys(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return set()
-    if not isinstance(payload, list):
-        return set()
-    return {str(item) for item in payload}
-
-
-def save_sent_keys(path: Path, keys: set[str]) -> None:
-    path.write_text(json.dumps(sorted(keys), ensure_ascii=True, indent=2), encoding="utf-8")
-
-
-def candle_volatility(candle: Candle) -> float:
-    return candle.high - candle.low
-
-
-def percentage_increase(pattern_value: float, reference_value: float) -> float:
-    if reference_value == 0:
-        return 0.0 if pattern_value == 0 else math.inf
-    return ((pattern_value - reference_value) / reference_value) * 100.0
-
-
-def build_increase_pair(pattern_value: float, first_reference: float, second_reference: float) -> tuple[float, float]:
-    return (
-        percentage_increase(pattern_value, first_reference),
-        percentage_increase(pattern_value, second_reference),
     )
 
 
@@ -89,70 +56,9 @@ def format_percentage_pair(values: tuple[float, float]) -> str:
 def reference_context_label(pattern: str) -> str:
     if pattern == "railway_tracks":
         return "2 candles before pattern"
+    if pattern == "inside_bar":
+        return "2 candles before mother candle"
     return "previous 2 candles"
-
-
-def latest_matches(signal: PriceActionSignal, batch: CandleBatch) -> list[SignalMatch]:
-    latest_timestamp = batch.candles[-1].timestamp
-    return [
-        match
-        for match in signal.evaluate_without_levels(batch)
-        if match.candle.timestamp == latest_timestamp
-    ]
-
-
-def reference_candles(match: SignalMatch, batch: CandleBatch) -> list[Candle] | None:
-    match_index = next(
-        (idx for idx, candle in enumerate(batch.candles) if candle.timestamp == match.candle.timestamp),
-        None,
-    )
-    if match_index is None:
-        return None
-
-    if match.pattern == "pin_bar":
-        if match_index < 2:
-            return None
-        return batch.candles[match_index - 2:match_index]
-
-    if match.pattern == "railway_tracks":
-        first_pattern_index = match_index - 1
-        if first_pattern_index < 2:
-            return None
-        return batch.candles[first_pattern_index - 2:first_pattern_index]
-
-    return None
-
-
-def build_filtered_signal(match: SignalMatch, batch: CandleBatch) -> FilteredSignal | None:
-    references = reference_candles(match, batch)
-    if references is None or len(references) != 2:
-        return None
-
-    first_reference, second_reference = references
-    pattern_candle = match.candle
-
-    volatility_increase_pct = build_increase_pair(
-        candle_volatility(pattern_candle),
-        candle_volatility(first_reference),
-        candle_volatility(second_reference),
-    )
-    volume_increase_pct = build_increase_pair(
-        pattern_candle.volume,
-        first_reference.volume,
-        second_reference.volume,
-    )
-
-    if min(volatility_increase_pct) < MIN_METRIC_INCREASE_PCT:
-        return None
-
-    if min(volume_increase_pct) < MIN_METRIC_INCREASE_PCT:
-        return None
-
-    return FilteredSignal(
-        match=match,
-        volatility_increase_pct=volatility_increase_pct,
-        volume_increase_pct=volume_increase_pct,
-    )
 
 
 def format_signal_message(signal: FilteredSignal, index: int, total: int) -> str:
@@ -162,7 +68,7 @@ def format_signal_message(signal: FilteredSignal, index: int, total: int) -> str
     symbol = html.escape(str(match.candle.symbol))
     timeframe = html.escape(str(match.candle.timeframe))
     open_price = html.escape(str(match.candle.open))
-    timestamp = html.escape(str(match.candle.datetime))
+    timestamp = html.escape(madrid_datetime_from_timestamp_ms(match.candle.timestamp))
     reference_context = html.escape(reference_context_label(match.pattern))
     volatility = format_percentage_pair(signal.volatility_increase_pct)
     volume = format_percentage_pair(signal.volume_increase_pct)
@@ -202,10 +108,8 @@ def since_ms(interval: str, multiplier: int = 1) -> int:
 def main() -> None:
     client = TelegramClient(TelegramConfig.from_env())
     connectors = [BingXConnector()]
-    timeframes = ["15m", "30m", "1h"]
-    symbols = ["BTC/USDT", "ETH/USDT", "XRP/USDT", "LINK/USDT", "TRX/USDT", "SOL/USDT", "NEAR/USDT", "ATOM/USDT", "BNB/USDT"]
-
-    sent_keys = load_sent_keys(SENT_SIGNALS_PATH)
+    timeframes = ["15m", "30m", "1h", "4h"]
+    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "NEAR/USDT"]
 
     for connector in connectors:
         signals: list[FilteredSignal] = []
@@ -213,6 +117,7 @@ def main() -> None:
             for timeframe in timeframes:
                 limit = 24
                 since = since_ms(timeframe, limit)
+                now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
                 ohlcv = connector.client.fetch_ohlcv(
                     symbol,
                     timeframe=timeframe,
@@ -224,7 +129,7 @@ def main() -> None:
                 candles = [
                     Candle(
                         timestamp=ts,
-                        datetime=datetime.fromtimestamp(ts / 1000, tz=timezone.utc).isoformat(),
+                        datetime=madrid_datetime_from_timestamp_ms(int(ts)),
                         open=o,
                         high=h,
                         low=l,
@@ -234,17 +139,27 @@ def main() -> None:
                         timeframe=timeframe,
                     )
                     for ts, o, h, l, c, v in ohlcv
+                    if is_candle_closed(int(ts), timeframe, now_ms=now_ms)
                 ]
 
+                batch = latest_fresh_batch(
+                    candles,
+                    timeframe,
+                    now_ms=now_ms,
+                    freshness_ms=SCAN_INTERVAL_MS,
+                )
+                if batch is None:
+                    continue
+
                 detector = PriceActionSignal()
-
-                for i in range(3, len(candles)):
-                    batch = CandleBatch(candles[i - 3: i + 1])
-
-                    for match in latest_matches(detector, batch):
-                        filtered_signal = build_filtered_signal(match, batch)
-                        if filtered_signal is not None:
-                            signals.append(filtered_signal)
+                for match in latest_matches(detector, batch):
+                    filtered_signal = build_filtered_signal(
+                        match,
+                        batch,
+                        min_metric_increase_pct=MIN_METRIC_INCREASE_PCT,
+                    )
+                    if filtered_signal is not None:
+                        signals.append(filtered_signal)
 
         seen = set()
         unique_signals: list[FilteredSignal] = []
@@ -255,23 +170,18 @@ def main() -> None:
                 seen.add(key)
                 unique_signals.append(signal)
 
-        new_signals = [signal for signal in unique_signals if match_key(signal) not in sent_keys]
-
-        if len(new_signals) > 0:
+        if len(unique_signals) > 0:
             client.send_text(
-                f"<b>Signals found:</b> <code>{len(new_signals)}</code>",
+                f"<b>Signals found:</b> <code>{len(unique_signals)}</code>",
                 parse_mode="HTML",
             )
-        else:
-            client.send_text("<b>No new signals found.</b>", parse_mode="HTML")
+        # else:
+        #     client.send_text("<b>No new signals found.</b>", parse_mode="HTML")
 
-        total_signals = len(new_signals)
-        for idx, result in enumerate(new_signals, start=1):
+        total_signals = len(unique_signals)
+        for idx, result in enumerate(unique_signals, start=1):
             text = format_signal_message(result, idx, total_signals)
             client.send_text(text, parse_mode="HTML")
-            sent_keys.add(match_key(result))
-
-        save_sent_keys(SENT_SIGNALS_PATH, sent_keys)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,25 @@
+[Unit]
+Description=Hermes Trading Telegram signal scan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+Group=hermes
+WorkingDirectory=/opt/hermes-trading/app
+EnvironmentFile=/etc/hermes-trading/hermes-signals-bot.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/hermes-trading/app/.venv/bin/python /opt/hermes-trading/app/src/signals_bot.py
+TimeoutStartSec=10min
+UMask=0077
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

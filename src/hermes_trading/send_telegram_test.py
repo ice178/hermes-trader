@@ -9,7 +9,7 @@ if __package__ in (None, ""):
     # Ensure src/ is on sys.path for direct script execution.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from telegram import TelegramClient, TelegramConfig
+from hermes_trading.telegram import TelegramClient, TelegramConfig
 
 
 def main() -> int:
