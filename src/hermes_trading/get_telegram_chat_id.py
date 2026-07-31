@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 DEFAULT_API_URL = "https://api.telegram.org"
 DEFAULT_TIMEOUT = 10
-ENV_BOT_TOKEN = "8457959483:AAGMA9Yjhc4FEAM3xVbFZRga449SRkbFJ9E"
+ENV_BOT_TOKEN = "TELEGRAM_BOT_TOKEN"
 ENV_CHAT_ID = "TELEGRAM_CHAT_ID"
 ENV_SSL_INSECURE = "TELEGRAM_SSL_INSECURE"
 ENV_CA_BUNDLE = "TELEGRAM_CA_BUNDLE"
@@ -107,7 +107,6 @@ def main(argv: list[str] | None = None) -> int:
         help=f"Path to CA bundle (default: ${ENV_CA_BUNDLE}).",
     )
     args = parser.parse_args(argv)
-    args.token = "8457959483:AAGMA9Yjhc4FEAM3xVbFZRga449SRkbFJ9E"
 
     if not args.token:
         raise ValueError(f"Missing bot token. Set ${ENV_BOT_TOKEN} or pass --token.")

@@ -17,13 +17,12 @@ except ImportError:  # pragma: no cover - optional dependency
 
 DEFAULT_API_URL = "https://api.telegram.org"
 DEFAULT_TIMEOUT = 10
-ENV_BOT_TOKEN = "8457959483:AAGMA9Yjhc4FEAM3xVbFZRga449SRkbFJ9E"
-ENV_CHAT_ID = "167211075"
+ENV_BOT_TOKEN = "TELEGRAM_BOT_TOKEN"
+ENV_CHAT_ID = "TELEGRAM_CHAT_ID"
 ENV_SSL_INSECURE = "TELEGRAM_SSL_INSECURE"
 ENV_CA_BUNDLE = "TELEGRAM_CA_BUNDLE"
 SSL_INSECURE_VALUES = {"1", "true", "yes", "on"}
 
-# update_id=680759783 chat_id=167211075 username=ice178 name=Art text=привет!
 
 def _is_truthy(value: str | None) -> bool:
     if value is None:
@@ -43,8 +42,8 @@ def ca_bundle_from_env(key: str = ENV_CA_BUNDLE) -> str | None:
 class TelegramConfig:
     """Configuration for Telegram Bot API access."""
 
-    bot_token: str = ENV_BOT_TOKEN
-    chat_id: str = ENV_CHAT_ID
+    bot_token: str
+    chat_id: str
     api_url: str = DEFAULT_API_URL
     timeout: float = DEFAULT_TIMEOUT
     verify_ssl: bool = True
@@ -63,14 +62,6 @@ class TelegramConfig:
         ca_bundle_key: str = ENV_CA_BUNDLE,
         ca_bundle: str | None = None,
     ) -> "TelegramConfig":
-        return cls(
-            bot_token=ENV_BOT_TOKEN,
-            chat_id=ENV_CHAT_ID,
-            api_url=DEFAULT_API_URL,
-            timeout=DEFAULT_TIMEOUT,
-            verify_ssl=False,
-            ca_bundle=ENV_CA_BUNDLE,
-        )
         token = os.getenv(token_key)
         chat_id = os.getenv(chat_id_key)
         if verify_ssl is None:

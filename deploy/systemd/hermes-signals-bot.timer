@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Hermes signal scan every 15 minutes
+
+[Timer]
+OnCalendar=*-*-* *:01,16,31,46:00
+Persistent=yes
+AccuracySec=30s
+Unit=hermes-signals-bot.service
+
+[Install]
+WantedBy=timers.target

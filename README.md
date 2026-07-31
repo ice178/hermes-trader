@@ -67,11 +67,16 @@ Artifacts written to `output-dir`:
 
 ## Telegram notifications
 
-Set credentials via environment variables and send a message:
+Copy `.env.example` to `.env`, replace the placeholders, and load it into the
+current shell. The application reads configuration from environment variables;
+it does not parse `.env` itself.
 
 ```bash
-export TELEGRAM_BOT_TOKEN="your-bot-token"
-export TELEGRAM_CHAT_ID="your-chat-id"
+cp .env.example .env
+chmod 600 .env
+set -a
+. ./.env
+set +a
 ```
 
 ```python
@@ -80,3 +85,6 @@ from hermes_trading.telegram import TelegramClient, TelegramConfig
 client = TelegramClient(TelegramConfig.from_env())
 client.send_text("Hermes trading is online.")
 ```
+
+Never commit `.env` or paste credentials into source files. For a Linux server,
+follow [the signal bot deployment guide](docs/server-deployment.md).

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import html
 import json
 import math
+import os
 from pathlib import Path
 
 from hermes_trading.candles import Candle, CandleBatch
@@ -18,9 +19,16 @@ from hermes_trading.signal_filters import (
 )
 from hermes_trading.signals import PriceActionSignal
 from hermes_trading.telegram import TelegramClient, TelegramConfig
-from hermes_trading.time_utils import madrid_datetime_from_timestamp_ms
+from hermes_trading.time_utils import (
+    is_candle_closed,
+    madrid_datetime_from_timestamp_ms,
+)
 
-SENT_SIGNALS_PATH = Path(__file__).resolve().parent / "signals_bot_sent.json"
+DEFAULT_SENT_SIGNALS_PATH = Path(__file__).resolve().parent / "signals_bot_sent.json"
+ENV_SENT_SIGNALS_PATH = "HERMES_SENT_SIGNALS_PATH"
+SENT_SIGNALS_PATH = Path(
+    os.getenv(ENV_SENT_SIGNALS_PATH, str(DEFAULT_SENT_SIGNALS_PATH))
+).expanduser()
 MIN_METRIC_INCREASE_PCT = DEFAULT_MIN_METRIC_INCREASE_PCT
 
 
@@ -121,8 +129,9 @@ def since_ms(interval: str, multiplier: int = 1) -> int:
 def main() -> None:
     client = TelegramClient(TelegramConfig.from_env())
     connectors = [BingXConnector()]
-    timeframes = ["15m", "30m", "1h"]
-    symbols = ["BTC/USDT", "ETH/USDT", "XRP/USDT", "LINK/USDT", "TRX/USDT", "SOL/USDT", "NEAR/USDT", "ATOM/USDT", "BNB/USDT"]
+    timeframes = ["15m", "30m", "1h", "4h"]
+    # symbols = ["BTC/USDT", "ETH/USDT", "XRP/USDT", "LINK/USDT", "TRX/USDT", "SOL/USDT", "NEAR/USDT", "ATOM/USDT", "BNB/USDT"]
+    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT"]
 
     sent_keys = load_sent_keys(SENT_SIGNALS_PATH)
 
@@ -132,6 +141,7 @@ def main() -> None:
             for timeframe in timeframes:
                 limit = 24
                 since = since_ms(timeframe, limit)
+                now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
                 ohlcv = connector.client.fetch_ohlcv(
                     symbol,
                     timeframe=timeframe,
@@ -153,6 +163,7 @@ def main() -> None:
                         timeframe=timeframe,
                     )
                     for ts, o, h, l, c, v in ohlcv
+                    if is_candle_closed(int(ts), timeframe, now_ms=now_ms)
                 ]
 
                 detector = PriceActionSignal()
