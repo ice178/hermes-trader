@@ -2,11 +2,11 @@
 
 ## Status
 
-Review
+Done
 
 Owner: Tomasso / Codex
 
-Updated: 2026-07-31
+Updated: 2026-08-02
 
 ## Context
 
@@ -101,7 +101,8 @@ Implement the agreed stateless model. Do not add a cache, watermark, database, o
 - Repeated direct runs during one freshness window can repeat a notification; the normal `systemd` timer runs once per slot.
 - Existing pattern detection, filters, symbols, and message formatting are unchanged.
 - No live Telegram or exchange requests were made.
+- The user confirmed that the stateless bot operates on the deployed Ubuntu timer.
 
 ## Handoff
 
-Implementation is ready for review. Final full suite: `82 passed`. Next: perform an optional scheduled-time local smoke test.
+Completed and deployed with task 001. Final full suite: `82 passed`. The intentional operational tradeoff remains: an outage of 15 minutes or more may skip a signal, while repeated manual runs within one freshness window may duplicate one.

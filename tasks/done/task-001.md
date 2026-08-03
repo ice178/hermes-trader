@@ -2,11 +2,11 @@
 
 ## Status
 
-Review
+Done
 
 Owner: Tomasso / Codex
 
-Updated: 2026-07-31
+Updated: 2026-08-02
 
 ## Context
 
@@ -54,7 +54,7 @@ Strategy settings such as symbols, timeframes, and signal thresholds remain code
 
 ## Open questions
 
-- [ ] Confirm the server operating system and whether `systemd` is available.
+- [x] Confirm the server operating system and whether `systemd` is available.
 - [x] Confirm that task 002 removes the need for sent-signal state on the server.
 - [x] Preserve the previous schedule at minutes 01, 16, 31, and 46 of every hour.
 
@@ -69,7 +69,7 @@ Strategy settings such as symbols, timeframes, and signal thresholds remain code
 
 ## Implementation notes
 
-Implemented with existing environment-loading code and standard server facilities. The Linux/`systemd` assumption must be confirmed before applying the runbook to the actual host.
+Implemented with existing environment-loading code and standard server facilities. Deployment was completed on an Ubuntu server with `systemd`.
 
 ## Test plan
 
@@ -88,9 +88,9 @@ Inspect the current runtime path and the reference deployment without exposing s
 - Current working tree contains no value matching the Telegram token format.
 - Existing user change adding `XRP/USDT` to `src/signals_bot.py` was preserved.
 - The old token remains recoverable from Git history and must be revoked; source cleanup alone does not invalidate it.
-- The service and timer were reviewed statically on macOS, not executed on the target Linux host.
-- No live Telegram message or exchange request was made during verification.
+- The service and timer were first reviewed statically on macOS, then installed on the target Ubuntu host.
+- The user confirmed that the deployed service and timer work on the server.
 
 ## Handoff
 
-Implementation is ready for review with the stateless production loop from task 002. Confirm that the target host uses `systemd`, revoke the historical token, create the protected server environment file, then follow `docs/server-deployment.md`.
+Completed and deployed on Ubuntu. The bot runs as a `systemd` oneshot service triggered by `hermes-signals-bot.timer`; configuration is supplied by `/etc/hermes-trading/hermes-signals-bot.env`. Continue to monitor runs with `journalctl -u hermes-signals-bot.service` and rotate any credential previously committed to Git.

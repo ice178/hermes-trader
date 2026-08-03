@@ -150,6 +150,25 @@ def build_filtered_signal(
     *,
     min_metric_increase_pct: float = DEFAULT_MIN_METRIC_INCREASE_PCT,
 ) -> FilteredSignal | None:
+    measured_signal = build_signal_metrics(match, batch)
+    if measured_signal is None:
+        return None
+
+    if not signal_metrics_pass(
+        measured_signal,
+        min_metric_increase_pct=min_metric_increase_pct,
+    ):
+        return None
+
+    return measured_signal
+
+
+def build_signal_metrics(
+    match: SignalMatch,
+    batch: CandleBatch,
+) -> FilteredSignal | None:
+    """Enrich a match with metrics without using them as acceptance gates."""
+
     measured_candle = metric_candle(match, batch)
     if measured_candle is None:
         return None
@@ -171,16 +190,36 @@ def build_filtered_signal(
         second_reference.volume,
     )
 
-    if min(volatility_increase_pct) < min_metric_increase_pct:
-        return None
-
-    if min(volume_increase_pct) < min_metric_increase_pct:
-        return None
-
     return FilteredSignal(
         match=match,
         volatility_increase_pct=volatility_increase_pct,
         volume_increase_pct=volume_increase_pct,
+    )
+
+
+def metric_increase_passes(
+    values: tuple[float, float],
+    *,
+    min_metric_increase_pct: float = DEFAULT_MIN_METRIC_INCREASE_PCT,
+) -> bool:
+    """Return whether a metric exceeds the threshold against both references."""
+
+    return min(values) >= min_metric_increase_pct
+
+
+def signal_metrics_pass(
+    signal: FilteredSignal,
+    *,
+    min_metric_increase_pct: float = DEFAULT_MIN_METRIC_INCREASE_PCT,
+) -> bool:
+    """Return whether both volatility and volume pass against both references."""
+
+    return metric_increase_passes(
+        signal.volatility_increase_pct,
+        min_metric_increase_pct=min_metric_increase_pct,
+    ) and metric_increase_passes(
+        signal.volume_increase_pct,
+        min_metric_increase_pct=min_metric_increase_pct,
     )
 
 
