@@ -1,9 +1,10 @@
 [Unit]
-Description=Run the Hermes signal scan every 15 minutes
+Description=Run the Hermes signal scan during Madrid trading hours
 
 [Timer]
-OnCalendar=*-*-* *:01,16,31,46:00
-Persistent=yes
+OnCalendar=*-*-* 08..22:01,16,31,46:00 Europe/Madrid
+OnCalendar=*-*-* 23:01:00 Europe/Madrid
+Persistent=no
 AccuracySec=30s
 Unit=hermes-signals-bot.service
 

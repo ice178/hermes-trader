@@ -6,8 +6,7 @@ Every meaningful task should be linked from this file. Name task files `task-NNN
 
 | Task | Status | Owner | Updated | Notes |
 |---|---|---|---|---|
-| [Task 001: Prepare the Telegram signal bot for server deployment](active/task-001.md) | Review | Tomasso / Codex | 2026-07-31 | Deployment guide aligned with stateless production operation |
-| [Task 002: Process only newly closed candles](active/task-002.md) | Review | Tomasso / Codex | 2026-07-31 | Stateless fresh-close implementation ready for review |
+| [Task 003: Add Madrid trading hours and signal context to notifications](active/task-003.md) | Review | Tomasso / Codex | 2026-08-03 | Optional metric filter and candle close time implemented; pending deployment check |
 
 ## Backlog
 
@@ -18,3 +17,5 @@ Every meaningful task should be linked from this file. Name task files `task-NNN
 
 | Task | Status | Owner | Updated | Notes |
 |---|---|---|---|---|
+| [Task 001: Prepare the Telegram signal bot for server deployment](done/task-001.md) | Done | Tomasso / Codex | 2026-08-02 | Deployed on Ubuntu with systemd service and timer |
+| [Task 002: Process only newly closed candles](done/task-002.md) | Done | Tomasso / Codex | 2026-08-02 | Stateless fresh-close processing deployed; no sent-signal cache |

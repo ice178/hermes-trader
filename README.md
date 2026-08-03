@@ -24,8 +24,8 @@ signal logic used in `src/signals_bot.py`.
 What it does:
 
 - loads historical candles through an exchange connector;
-- detects `pin_bar` and `railway_tracks` signals with the same
-  volatility/volume filter as `signals_bot.py`;
+- detects `pin_bar` and `railway_tracks` signals with a configurable
+  volatility/volume filter;
 - opens a virtual trade on the next candle `open`;
 - sets stop distance from the current `trading.py` formula;
 - tracks `PnL` in `R`, `MAE`, `MFE`, reached `R` steps (`0.25R`, `0.50R`, ...),
@@ -55,6 +55,12 @@ Optional strategy flags:
 - `--no-export-trades`
 - `--no-export-summary`
 
+The historical backtest keeps this metric filter for strategy analysis. The
+live Telegram bot reports the same volatility and volume context but does not
+discard a price-action signal when either metric is below the threshold by
+default. Set `SIGNAL_METRIC_FILTER_ENABLED=1` to restore metric-based filtering
+for live notifications. Every notification states whether the filter was used.
+
 For longer historical backtests, `binance` is the safer default. BingX may reject
 wide historical ranges and return no candles for broad date windows.
 
@@ -78,6 +84,10 @@ set -a
 . ./.env
 set +a
 ```
+
+With the default `SIGNAL_METRIC_FILTER_ENABLED=0`, volume and volatility are
+informational. Set it to `1` when both metrics must be at least 10% above both
+reference candles before a live signal is sent.
 
 ```python
 from hermes_trading.telegram import TelegramClient, TelegramConfig

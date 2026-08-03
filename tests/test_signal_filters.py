@@ -2,12 +2,14 @@ from hermes_trading.candles import Candle, CandleBatch
 from hermes_trading.liquidity import Level
 from hermes_trading.signal_filters import (
     build_filtered_signal,
+    build_signal_metrics,
     filtered_latest_matches,
     latest_fresh_batch,
+    metric_increase_passes,
     metric_candle,
     reference_candles,
 )
-from hermes_trading.signals import PriceActionSignal
+from hermes_trading.signals import PriceActionSignal, SignalMatch
 
 
 def _cndl(
@@ -158,3 +160,33 @@ def test_filtered_latest_matches_respects_levels_when_provided() -> None:
     assert len(results) == 1
     assert results[0].match.level is not None
     assert results[0].match.level.weight == 1.0
+
+
+def test_signal_metrics_are_available_when_filter_threshold_fails() -> None:
+    batch = CandleBatch(
+        [
+            _cndl(0, 100, 110, 100, 105, volume=100),
+            _cndl(1, 100, 110, 100, 105, volume=100),
+            _cndl(2, 100, 110, 100, 105, volume=100),
+            _cndl(3, 100, 105, 100, 101, volume=90),
+        ]
+    )
+    match = SignalMatch(
+        pattern="pin_bar",
+        direction="long",
+        candle=batch.candles[-1],
+        level=None,
+    )
+
+    measured = build_signal_metrics(match, batch)
+    filtered = build_filtered_signal(match, batch)
+
+    assert measured is not None
+    assert measured.volatility_increase_pct == (-50.0, -50.0)
+    assert measured.volume_increase_pct == (-10.0, -10.0)
+    assert filtered is None
+
+
+def test_metric_increase_threshold_must_pass_against_both_references() -> None:
+    assert metric_increase_passes((10.0, 10.0))
+    assert not metric_increase_passes((10.0, 9.9))
