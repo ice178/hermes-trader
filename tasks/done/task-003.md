@@ -2,7 +2,7 @@
 
 ## Status
 
-Review
+Done
 
 Owner: Tomasso / Codex
 
@@ -107,7 +107,5 @@ pytest`: 113 passed.
 
 ## Handoff
 
-Before deployment, set `SIGNAL_METRIC_FILTER_ENABLED` in
-`/etc/hermes-trading/hermes-signals-bot.env`, pull the updated code, and perform
-one manual service run when a real Telegram notification is acceptable. No live
-Telegram or exchange request was made during implementation.
+Released and verified on the Ubuntu server by Tomasso on 2026-08-03. The task is
+complete; future behavior changes should use a new task.

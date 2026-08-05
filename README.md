@@ -56,10 +56,11 @@ Optional strategy flags:
 - `--no-export-summary`
 
 The historical backtest keeps this metric filter for strategy analysis. The
-live Telegram bot reports the same volatility and volume context but does not
-discard a price-action signal when either metric is below the threshold by
-default. Set `SIGNAL_METRIC_FILTER_ENABLED=1` to restore metric-based filtering
-for live notifications. Every notification states whether the filter was used.
+live Telegram bot reports volatility or volume context only when the
+corresponding metric passes, but does not discard a price-action signal when a
+metric is below the threshold by default. Set
+`SIGNAL_METRIC_FILTER_ENABLED=1` to restore metric-based filtering for live
+notifications.
 
 For longer historical backtests, `binance` is the safer default. BingX may reject
 wide historical ranges and return no candles for broad date windows.
