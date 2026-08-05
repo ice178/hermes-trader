@@ -83,17 +83,6 @@ def reference_context_label(pattern: str) -> str:
     return "previous 2 candles"
 
 
-def metric_status(values: tuple[float, float]) -> str:
-    return (
-        "YES"
-        if metric_increase_passes(
-            values,
-            min_metric_increase_pct=MIN_METRIC_INCREASE_PCT,
-        )
-        else "NO"
-    )
-
-
 def should_send_signal(
     signal: FilteredSignal,
     *,
@@ -105,25 +94,7 @@ def should_send_signal(
     )
 
 
-def metric_filter_label(
-    signal: FilteredSignal,
-    *,
-    metric_filter_enabled: bool,
-) -> str:
-    if not metric_filter_enabled:
-        return "DISABLED — metrics are informational only"
-    if should_send_signal(signal, metric_filter_enabled=True):
-        return "ENABLED — signal passed"
-    return "ENABLED — signal failed"
-
-
-def format_signal_message(
-    signal: FilteredSignal,
-    index: int,
-    total: int,
-    *,
-    metric_filter_enabled: bool = False,
-) -> str:
+def format_signal_message(signal: FilteredSignal) -> str:
     match = signal.match
     pattern = html.escape(str(match.pattern).replace("_", " ").title())
     direction = html.escape(str(match.direction).upper())
@@ -134,35 +105,40 @@ def format_signal_message(
         madrid_datetime_from_timestamp_ms(signal_candle_close_ms(match.candle))
     )
     reference_context = html.escape(reference_context_label(match.pattern))
-    volatility = format_percentage_pair(signal.volatility_increase_pct)
-    volume = format_percentage_pair(signal.volume_increase_pct)
-    volatility_status = metric_status(signal.volatility_increase_pct)
-    volume_status = metric_status(signal.volume_increase_pct)
     market_session = html.escape(signal_candle_market_session_label(match.candle))
-    metric_filter = html.escape(
-        metric_filter_label(
-            signal,
-            metric_filter_enabled=metric_filter_enabled,
-        )
-    )
 
-    header = f"<b>Signal {index}/{total}</b>"
-    details = (
-        f"<b>Symbol:</b> {symbol}\n"
-        f"<b>Timeframe:</b> {timeframe}\n"
-        f"<b>Pattern:</b> <code>{pattern}</code>\n"
-        f"<b>Direction:</b> <code>{direction}</code>\n"
-        f"<b>Open price:</b> <code>{open_price}</code>\n"
-        f"<b>Candle close:</b> {candle_close}\n"
-        f"<b>Market session:</b> <code>{market_session}</code>\n"
-        f"<b>Metric filter:</b> <code>{metric_filter}</code>\n"
-        f"<b>Elevated volatility (≥10% vs both):</b> "
-        f"<code>{volatility_status}</code>\n"
-        f"<b>Volatility vs {reference_context}:</b> {volatility}\n"
-        f"<b>Elevated volume (≥10% vs both):</b> <code>{volume_status}</code>\n"
-        f"<b>Volume vs {reference_context}:</b> {volume}"
-    )
-    return f"{header}\n{details}"
+    lines = [
+        f"<b>Symbol:</b> {symbol}",
+        f"<b>Timeframe:</b> {timeframe}",
+        f"<b>Pattern:</b> <code>{pattern}</code>",
+        f"<b>Direction:</b> <code>{direction}</code>",
+        f"<b>Open price:</b> <code>{open_price}</code>",
+        f"<b>Candle close:</b> {candle_close}",
+        f"<b>Market session:</b> <code>{market_session}</code>",
+    ]
+    if metric_increase_passes(
+        signal.volatility_increase_pct,
+        min_metric_increase_pct=MIN_METRIC_INCREASE_PCT,
+    ):
+        volatility = format_percentage_pair(signal.volatility_increase_pct)
+        lines.append(
+            f"<b>Volatility vs {reference_context}:</b> {volatility}"
+        )
+    if metric_increase_passes(
+        signal.volume_increase_pct,
+        min_metric_increase_pct=MIN_METRIC_INCREASE_PCT,
+    ):
+        volume = format_percentage_pair(signal.volume_increase_pct)
+        lines.append(f"<b>Volume vs {reference_context}:</b> {volume}")
+    return "\n".join(lines)
+
+
+def send_signal_notifications(
+    client: TelegramClient,
+    signals: list[FilteredSignal],
+) -> None:
+    for signal in signals:
+        client.send_text(format_signal_message(signal), parse_mode="HTML")
 
 
 def since_ms(interval: str, multiplier: int = 1) -> int:
@@ -248,23 +224,7 @@ def main() -> None:
                 seen.add(key)
                 unique_signals.append(signal)
 
-        if len(unique_signals) > 0:
-            client.send_text(
-                f"<b>Signals found:</b> <code>{len(unique_signals)}</code>",
-                parse_mode="HTML",
-            )
-        # else:
-        #     client.send_text("<b>No new signals found.</b>", parse_mode="HTML")
-
-        total_signals = len(unique_signals)
-        for idx, result in enumerate(unique_signals, start=1):
-            text = format_signal_message(
-                result,
-                idx,
-                total_signals,
-                metric_filter_enabled=metric_filter_enabled,
-            )
-            client.send_text(text, parse_mode="HTML")
+        send_signal_notifications(client, unique_signals)
 
 
 if __name__ == "__main__":

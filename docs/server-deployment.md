@@ -84,9 +84,10 @@ sudoedit /etc/hermes-trading/hermes-signals-bot.env
 - `1` — бот отправляет сигнал только тогда, когда и объём, и волатильность как
   минимум на 10% выше обеих соответствующих свечей сравнения.
 
-В каждом уведомлении явно указано, был фильтр включён или метрики использовались
-только как информация. Время сигнала отображается как время закрытия финальной
-свечи паттерна в `Europe/Madrid`.
+В уведомлении сравнение объёма или волатильности показывается только тогда,
+когда соответствующая метрика минимум на 10% выше обеих свечей сравнения.
+Время сигнала отображается как время закрытия финальной свечи паттерна в
+`Europe/Madrid`.
 
 `systemd` читает этот файл через `EnvironmentFile`; Python сам `.env` не читает.
 Дополнительная библиотека для этого не нужна. Оставьте
@@ -145,25 +146,35 @@ state: он анализирует только свечи, закрывшиес
 
 ## Обновление
 
-Остановите timer, обновите код и зависимости, запустите тесты, затем верните
-расписание:
+После первого появления скрипта на сервере один раз получите его обычным
+fast-forward обновлением:
 
 ```bash
 sudo systemctl stop hermes-signals-bot.timer
+sudo systemctl stop hermes-signals-bot.service
 sudo -u hermes git -C /opt/hermes-trading/app pull --ff-only
-sudo -u hermes /opt/hermes-trading/app/.venv/bin/python -m pip install --editable /opt/hermes-trading/app
-sudo install -o root -g root -m 0644 \
-  /opt/hermes-trading/app/deploy/systemd/hermes-signals-bot.timer \
-  /etc/systemd/system/hermes-signals-bot.timer
-sudo systemctl daemon-reload
-sudo systemctl start hermes-signals-bot.service
-sudo systemctl restart hermes-signals-bot.timer
-systemctl list-timers hermes-signals-bot.timer
+sudo /opt/hermes-trading/app/deploy/update-server.sh
 ```
 
-Если проверка не прошла, не запускайте timer. Верните предыдущий проверенный
-commit, повторите установку и ручной запуск. Environment находится вне
-репозитория, поэтому обновление кода его не перезаписывает.
+Остановка перед первым `pull` нужна только для безопасного bootstrap, пока
+скрипта ещё нет на сервере. Все последующие обновления запускаются одной
+командой:
+
+```bash
+sudo /opt/hermes-trading/app/deploy/update-server.sh
+```
+
+Скрипт проверяет чистоту tracked-файлов, заранее получает и валидирует
+`origin/main`, останавливает timer и текущий scan, выполняет только
+fast-forward обновление, обновляет virtualenv, устанавливает оба systemd unit,
+проверяет их и включает timer. Environment находится вне репозитория и не
+перезаписывается. Live scan во время деплоя не запускается, поэтому сам деплой
+не отправляет Telegram-сообщения.
+
+Если ошибка произошла после остановки production, timer намеренно остаётся
+остановленным. Исправьте указанную ошибку или верните напечатанный предыдущий
+commit, затем снова запустите скрипт. Не включайте timer поверх частично
+установленного обновления.
 
 ## Остановка и удаление
 
