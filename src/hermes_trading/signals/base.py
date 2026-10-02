@@ -18,6 +18,7 @@ class SignalMatch:
     direction: Literal["long", "short"]
     candle: Candle
     level: Level|None
+    pattern_candles: tuple[Candle, ...] = ()
 
 
 class Signal(ABC):

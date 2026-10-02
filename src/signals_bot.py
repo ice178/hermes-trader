@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import html
+import logging
 import math
 import os
+import sqlite3
+from typing import Sequence
 
 from hermes_trading.candles import Candle
 from hermes_trading.connectors import BingXConnector
+from hermes_trading.level_store import LevelStore
+from hermes_trading.manual_levels import describe_area, matching_areas
+from hermes_trading.scanner_config import SCAN_MARKETS, SCAN_TIMEFRAMES
 from hermes_trading.market_sessions import (
     signal_candle_close_ms,
     signal_candle_market_session_label,
@@ -24,6 +30,7 @@ from hermes_trading.signal_filters import (
 )
 from hermes_trading.signals import PriceActionSignal
 from hermes_trading.telegram import TelegramClient, TelegramConfig
+from hermes_trading.telegram_commands import MESSAGE_LIMIT, text_units
 from hermes_trading.time_utils import (
     is_candle_closed,
     madrid_datetime_from_timestamp_ms,
@@ -34,13 +41,15 @@ MIN_METRIC_INCREASE_PCT = DEFAULT_MIN_METRIC_INCREASE_PCT
 SCAN_INTERVAL_MS = timeframe_to_milliseconds("15m")
 ENV_METRIC_FILTER_ENABLED = "SIGNAL_METRIC_FILTER_ENABLED"
 TRUTHY_CONFIG_VALUES = {"1", "true", "yes", "on"}
-FALSY_CONFIG_VALUES = {"0", "false", "no", "off", ""}
+FALSY_CONFIG_VALUES = {"0", "false", "no", "off"}
+LOGGER = logging.getLogger(__name__)
+CONNECTOR_TYPES = {"bingx": BingXConnector}
 
 
 def metric_filter_enabled_from_env(
     key: str = ENV_METRIC_FILTER_ENABLED,
 ) -> bool:
-    value = os.getenv(key, "0").strip().lower()
+    value = os.getenv(key, "").strip().lower() or "1"
     if value in TRUTHY_CONFIG_VALUES:
         return True
     if value in FALSY_CONFIG_VALUES:
@@ -133,12 +142,45 @@ def format_signal_message(signal: FilteredSignal) -> str:
     return "\n".join(lines)
 
 
+def format_signal_messages(
+    signal: FilteredSignal, *, annotations: Sequence[str] = (),
+    title: str | None = None,
+) -> list[str]:
+    """Render a signal and intact, escaped annotations within message limits."""
+    base = format_signal_message(signal)
+    if title:
+        base = f"<b>{html.escape(title)}</b>\n" + base
+    messages: list[str] = []
+    message = base
+    for record in annotations:
+        addition = "\n" + html.escape(record)
+        if text_units(html.unescape(message + addition)) > MESSAGE_LIMIT:
+            messages.append(message)
+            message = base
+        message += addition
+    messages.append(message)
+    return messages
+
+
 def send_signal_notifications(
     client: TelegramClient,
     signals: list[FilteredSignal],
+    *,
+    level_store: LevelStore | None = None,
+    exchange: str = "bingx",
 ) -> None:
     for signal in signals:
-        client.send_text(format_signal_message(signal), parse_mode="HTML")
+        records: list[str] = []
+        if level_store is not None:
+            try:
+                areas = level_store.active_areas(exchange, signal.match.candle.symbol)
+                records = [describe_area(area) for area in
+                           matching_areas(signal.match, exchange, areas)]
+            except (sqlite3.Error, OSError, ValueError):
+                LOGGER.error("Manual price areas unavailable; sending signal without area context")
+                records = ["Manual levels: unavailable (database or pattern context error)."]
+        for message in format_signal_messages(signal, annotations=records):
+            client.send_text(message, parse_mode="HTML")
 
 
 def since_ms(interval: str, multiplier: int = 1) -> int:
@@ -162,14 +204,14 @@ def since_ms(interval: str, multiplier: int = 1) -> int:
 def main() -> None:
     client = TelegramClient(TelegramConfig.from_env())
     metric_filter_enabled = metric_filter_enabled_from_env()
-    connectors = [BingXConnector()]
-    timeframes = ["15m", "30m", "1h", "4h"]
-    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "NEAR/USDT"]
+    db_path = os.getenv("LEVELS_DB_PATH", "").strip()
+    level_store = LevelStore(db_path) if db_path else None
 
-    for connector in connectors:
+    for exchange, symbols in SCAN_MARKETS.items():
+        connector = CONNECTOR_TYPES[exchange]()
         signals: list[FilteredSignal] = []
         for symbol in symbols:
-            for timeframe in timeframes:
+            for timeframe in SCAN_TIMEFRAMES:
                 limit = 24
                 since = since_ms(timeframe, limit)
                 now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -224,7 +266,9 @@ def main() -> None:
                 seen.add(key)
                 unique_signals.append(signal)
 
-        send_signal_notifications(client, unique_signals)
+        send_signal_notifications(
+            client, unique_signals, level_store=level_store, exchange=exchange,
+        )
 
 
 if __name__ == "__main__":

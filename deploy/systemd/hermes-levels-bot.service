@@ -1,20 +1,25 @@
 [Unit]
-Description=Hermes Trading Telegram signal scan
+Description=Hermes Trading Telegram manual levels listener
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
-Type=oneshot
+Type=simple
 User=hermes
 Group=hermes
 WorkingDirectory=/opt/hermes-trading/app
 EnvironmentFile=/etc/hermes-trading/hermes-signals-bot.env
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/opt/hermes-trading/app/.venv/bin/python /opt/hermes-trading/app/src/signals_bot.py
-TimeoutStartSec=10min
-UMask=0077
+ExecStart=/opt/hermes-trading/app/.venv/bin/python /opt/hermes-trading/app/src/levels_bot.py
+Restart=on-failure
+RestartSec=10
+RestartPreventExitStatus=78
+TimeoutStopSec=60
 StateDirectory=hermes-trading
 StateDirectoryMode=0700
+UMask=0077
 
 NoNewPrivileges=yes
 PrivateTmp=yes
@@ -25,3 +30,6 @@ ProtectKernelTunables=yes
 ProtectKernelModules=yes
 RestrictSUIDSGID=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

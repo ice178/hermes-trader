@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from http.client import HTTPException
 import os
 import ssl
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -22,6 +24,15 @@ ENV_CHAT_ID = "TELEGRAM_CHAT_ID"
 ENV_SSL_INSECURE = "TELEGRAM_SSL_INSECURE"
 ENV_CA_BUNDLE = "TELEGRAM_CA_BUNDLE"
 SSL_INSECURE_VALUES = {"1", "true", "yes", "on"}
+
+
+class TelegramError(RuntimeError):
+    """Sanitized API/transport failure, without URLs, tokens or response bodies."""
+
+    def __init__(self, code: int | None = None, retry_after: int = 0) -> None:
+        self.code = code
+        self.retry_after = retry_after
+        super().__init__(f"Telegram request failed (code={code or 'transport'})")
 
 
 def _is_truthy(value: str | None) -> bool:
@@ -82,7 +93,7 @@ class TelegramConfig:
 
 
 class TelegramClient:
-    """Minimal Telegram Bot API client for sending messages."""
+    """Minimal Telegram Bot API client for delivery and command polling."""
 
     def __init__(self, config: TelegramConfig) -> None:
         self._config = config
@@ -91,28 +102,76 @@ class TelegramClient:
             ca_bundle=config.ca_bundle,
         )
 
-    def send_text(self, message: str, *, parse_mode: str | None = None) -> dict[str, Any]:
-        payload: dict[str, Any] = {"chat_id": self._config.chat_id, "text": message}
+    def send_text(
+        self, message: str, *, parse_mode: str | None = None,
+        chat_id: int | str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "chat_id": self._config.chat_id if chat_id is None else chat_id,
+            "text": message,
+        }
         if parse_mode:
             payload["parse_mode"] = parse_mode
         return self._post("sendMessage", payload)
 
-    def _post(self, method: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    def get_me(self) -> dict[str, Any]:
+        result = self._post("getMe", {}).get("result")
+        if (not isinstance(result, dict) or not isinstance(result.get("id"), int)
+                or not isinstance(result.get("username"), str)):
+            raise TelegramError()
+        return result
+
+    def get_updates(self, offset: int | None, *, timeout: int = 30) -> list[dict[str, Any]]:
+        payload: dict[str, Any] = {
+            "timeout": timeout, "limit": 100,
+            "allowed_updates": json.dumps(["message"]),
+        }
+        if offset is not None:
+            payload["offset"] = offset
+        result = self._post(
+            "getUpdates", payload, timeout=timeout + self._config.timeout,
+        ).get("result")
+        if not isinstance(result, list) or any(
+            not isinstance(item, dict) or not isinstance(item.get("update_id"), int)
+            for item in result
+        ):
+            raise TelegramError()
+        return result
+
+    def _post(
+        self, method: str, payload: Mapping[str, Any], *, timeout: float | None = None,
+    ) -> dict[str, Any]:
         data = urllib.parse.urlencode(payload).encode()
         url = f"{self._config.api_url}/bot{self._config.bot_token}/{method}"
-        with urllib.request.urlopen(
-            url,
-            data=data,
-            timeout=self._config.timeout,
-            context=self._ssl_context,
-        ) as response:  # noqa: S310
-            body = response.read()
-        if not body:
-            return {}
-        data = json.loads(body.decode("utf-8"))
-        if not data.get("ok", False):
-            raise RuntimeError(f"Telegram API returned failure: {json.dumps(data)}")
-        return data
+        try:
+            with urllib.request.urlopen(
+                url, data=data,
+                timeout=self._config.timeout if timeout is None else timeout,
+                context=self._ssl_context,
+            ) as response:  # noqa: S310
+                body = response.read()
+        except urllib.error.HTTPError as exc:
+            retry_after = 0
+            try:
+                error = json.loads(exc.read())
+                retry_after = max(0, int(error.get("parameters", {}).get("retry_after", 0)))
+            except (ValueError, TypeError, AttributeError, OSError, HTTPException):
+                pass
+            finally:
+                exc.close()
+            raise TelegramError(exc.code, retry_after) from None
+        except (OSError, urllib.error.URLError, ValueError, HTTPException):
+            raise TelegramError() from None
+        try:
+            result = json.loads(body.decode("utf-8"))
+            if not result.get("ok", False):
+                raise TelegramError(
+                    result.get("error_code"),
+                    max(0, int(result.get("parameters", {}).get("retry_after", 0))),
+                )
+            return result
+        except (ValueError, AttributeError, TypeError):
+            raise TelegramError() from None
 
 
 def create_ssl_context(

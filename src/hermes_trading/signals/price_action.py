@@ -20,13 +20,14 @@ class PriceActionSignal(Signal):
         bars = candles.candles
 
         for idx, bar in enumerate(bars):
-            for pattern, direction in self._detect_patterns(bars, idx):
+            for pattern, direction, span in self._detect_patterns(bars, idx):
                 matches.append(
                     SignalMatch(
                         pattern=pattern,
                         direction=direction,
                         candle=bar,
                         level=None,
+                        pattern_candles=span,
                     )
                 )
 
@@ -51,14 +52,14 @@ class PriceActionSignal(Signal):
             buy_levels = [lvl for lvl in touched_levels if lvl.type == "low"]
             sell_levels = [lvl for lvl in touched_levels if lvl.type == "high"]
 
-            for pattern, direction in self._detect_patterns(bars, idx):
+            for pattern, direction, span in self._detect_patterns(bars, idx):
                 if direction == "long" and buy_levels:
                     matches.extend(
-                        self._build_matches(pattern, direction, bar, buy_levels)
+                        self._build_matches(pattern, direction, bar, buy_levels, span)
                     )
                 if direction == "short" and sell_levels:
                     matches.extend(
-                        self._build_matches(pattern, direction, bar, sell_levels)
+                        self._build_matches(pattern, direction, bar, sell_levels, span)
                     )
 
         return matches
@@ -67,23 +68,29 @@ class PriceActionSignal(Signal):
         self,
         bars: List[Candle],
         idx: int,
-    ) -> list[tuple[str, Literal["long", "short"]]]:
+    ) -> list[tuple[str, Literal["long", "short"], tuple[Candle, ...]]]:
         current = bars[idx]
-        matches: list[tuple[str, Literal["long", "short"]]] = []
-        seen: set[tuple[str, Literal["long", "short"]]] = set()
+        matches: list[tuple[str, Literal["long", "short"], tuple[Candle, ...]]] = []
+        seen: dict[tuple[str, Literal["long", "short"]], int] = {}
 
-        def add(pattern: str, direction: Literal["long", "short"]) -> None:
+        def add(
+            pattern: str, direction: Literal["long", "short"], length: int = 2,
+        ) -> None:
             key = (pattern, direction)
+            span = tuple(bars[idx - length + 1:idx + 1])
             if key in seen:
+                # Preserve one signal and its order while retaining the full
+                # three-candle engulfing span when both variants are detected.
+                matches[seen[key]] = (pattern, direction, span)
                 return
-            seen.add(key)
-            matches.append(key)
+            seen[key] = len(matches)
+            matches.append((pattern, direction, span))
 
         if self._is_buy_pin_bar(current):
-            add("pin_bar", "long")
+            add("pin_bar", "long", 1)
 
         if self._is_sell_pin_bar(current):
-            add("pin_bar", "short")
+            add("pin_bar", "short", 1)
 
         if idx == 0:
             return matches
@@ -114,10 +121,10 @@ class PriceActionSignal(Signal):
         prev_prev = bars[idx - 2]
 
         if self._is_buy_engulfing(prev_prev, prev, current):
-            add("buy_engulfing", "long")
+            add("buy_engulfing", "long", 3)
 
         if self._is_sell_engulfing(prev_prev, prev, current):
-            add("sell_engulfing", "short")
+            add("sell_engulfing", "short", 3)
 
         return matches
 
@@ -127,6 +134,7 @@ class PriceActionSignal(Signal):
         direction: Literal["long", "short"],
         candle: Candle,
         levels: Iterable[Level],
+        pattern_candles: tuple[Candle, ...],
     ) -> List[SignalMatch]:
         return [
             SignalMatch(
@@ -134,6 +142,7 @@ class PriceActionSignal(Signal):
                 direction=direction,
                 candle=candle,
                 level=level,
+                pattern_candles=pattern_candles,
             )
             for level in levels
         ]
