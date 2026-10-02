@@ -213,3 +213,6 @@ __marimo__/
 # Hermes runtime files
 /logs/
 /src/signals_bot_sent.json
+*.sqlite3
+*.sqlite3-*
+*.sqlite3.lock

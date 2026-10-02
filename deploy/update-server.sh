@@ -6,6 +6,7 @@ readonly RUNTIME_USER="hermes"
 readonly ENV_FILE="/etc/hermes-trading/hermes-signals-bot.env"
 readonly SERVICE_NAME="hermes-signals-bot.service"
 readonly TIMER_NAME="hermes-signals-bot.timer"
+readonly LISTENER_NAME="hermes-levels-bot.service"
 readonly SYSTEMD_DIR="/etc/systemd/system"
 
 readonly GIT="/usr/bin/git"
@@ -87,12 +88,22 @@ as_runtime_user "${GIT}" -C "${APP_DIR}" merge-base --is-ancestor HEAD origin/ma
 
 previous_commit="$(as_runtime_user "${GIT}" -C "${APP_DIR}" rev-parse HEAD)"
 deployment_started=0
+restart_listener=0
+if "${SYSTEMCTL}" is-enabled --quiet "${LISTENER_NAME}" 2>/dev/null \
+    || "${SYSTEMCTL}" is-active --quiet "${LISTENER_NAME}" 2>/dev/null; then
+    restart_listener=1
+fi
 
 deployment_failed() {
     exit_code=$?
     echo "Deployment failed with exit code ${exit_code}." >&2
     if (( deployment_started == 1 )); then
+        "${SYSTEMCTL}" stop "${TIMER_NAME}" || true
+        if (( restart_listener == 1 )); then
+            "${SYSTEMCTL}" stop "${LISTENER_NAME}" || true
+        fi
         echo "${TIMER_NAME} remains stopped to avoid running a partial deployment." >&2
+        echo "An installed levels listener also remains stopped; restart it after recovery." >&2
         echo "Previous commit: ${previous_commit}" >&2
     fi
     exit "${exit_code}"
@@ -103,6 +114,9 @@ echo "Stopping the timer and any running scan..."
 "${SYSTEMCTL}" stop "${TIMER_NAME}"
 deployment_started=1
 "${SYSTEMCTL}" stop "${SERVICE_NAME}"
+if (( restart_listener == 1 )); then
+    "${SYSTEMCTL}" stop "${LISTENER_NAME}"
+fi
 
 echo "Updating the worktree to origin/main..."
 as_runtime_user "${GIT}" -C "${APP_DIR}" checkout main
@@ -125,10 +139,24 @@ echo "Installing and validating systemd units..."
 "${INSTALL}" -o root -g root -m 0644 \
     "${APP_DIR}/deploy/systemd/${TIMER_NAME}" \
     "${SYSTEMD_DIR}/${TIMER_NAME}"
+if [[ -f "${APP_DIR}/deploy/systemd/${LISTENER_NAME}" ]]; then
+    "${INSTALL}" -o root -g root -m 0644 \
+        "${APP_DIR}/deploy/systemd/${LISTENER_NAME}" \
+        "${SYSTEMD_DIR}/${LISTENER_NAME}"
+fi
 "${SYSTEMCTL}" daemon-reload
 "${SYSTEMD_ANALYZE}" verify \
     "${SYSTEMD_DIR}/${SERVICE_NAME}" \
     "${SYSTEMD_DIR}/${TIMER_NAME}"
+if [[ -f "${SYSTEMD_DIR}/${LISTENER_NAME}" ]]; then
+    "${SYSTEMD_ANALYZE}" verify "${SYSTEMD_DIR}/${LISTENER_NAME}"
+fi
+
+if (( restart_listener == 1 )); then
+    echo "Restarting the existing levels listener..."
+    "${SYSTEMCTL}" start "${LISTENER_NAME}"
+    "${SYSTEMCTL}" is-active --quiet "${LISTENER_NAME}"
+fi
 
 echo "Enabling the production schedule..."
 "${SYSTEMCTL}" enable --now "${TIMER_NAME}"

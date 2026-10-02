@@ -22,3 +22,7 @@ Every meaningful task should be linked from this file. Name task files `task-NNN
 | [Task 003: Add Madrid trading hours and signal context to notifications](done/task-003.md) | Done | Tomasso / Codex | 2026-08-03 | Released on Ubuntu with optional metric filter and candle close time |
 | [Task 005: Simplify Telegram signal notifications](done/task-005.md) | Done | Tomasso / Codex | 2026-08-05 | Compact per-signal messages with conditional positive metric context |
 | [Task 006: Add a manual server update script](done/task-006.md) | Done | Tomasso / Codex | 2026-08-05 | One-command safe update from origin/main on the production server |
+| [Task 007: Manage manual price levels and zones through Telegram](done/task-007.md) | Done | Tomasso / Codex | 2026-10-02 | Release readiness rechecked (254 tests with Tasks 008/009); uncommitted, production activation pending |
+| [Task 008: Scan historical patterns manually over a date range](done/task-008.md) | Done | Tomasso / Codex | 2026-09-25 | Manual CLI with date bounds and opt-in Telegram; schedule preserved; 235 tests pass |
+| [Task 009: Test current levels with Barcelona-local historical scans](done/task-009.md) | Done | Tomasso / Codex | 2026-09-25 | Barcelona input default, --check-levels against current areas; 254 tests pass |
+| [Task 010: Enable signal metric filtering by default and document release](done/task-010.md) | Done | Tomasso / Codex | 2026-10-02 | Filter on by default; 264 tests pass; existing production env must change to 1 |
